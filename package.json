@@ -1,0 +1,42 @@
+{
+  "name": "bb-plugin-project-icons",
+  "version": "0.1.0",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/fogrew/bb-plugin-project-icons.git"
+  },
+  "homepage": "https://github.com/fogrew/bb-plugin-project-icons",
+  "scripts": {
+    "build": "bb plugin build",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test server.test.mjs",
+    "check": "npm run typecheck && npm run build && npm test"
+  },
+  "engines": {
+    "bb": ">=0.46",
+    "bbPluginSdk": ">=0.6.49"
+  },
+  "bb": {
+    "name": "Project Icons",
+    "description": "Upload custom project images for BB's native sidebar.",
+    "branding": {
+      "icon": "Image"
+    },
+    "server": "./server.ts",
+    "app": "./app.tsx"
+  },
+  "dependencies": {
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@get-bb/plugin-sdk": "0.6.49",
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "better-sqlite3": "^12.0.0",
+    "hono": "^4.11.9",
+    "typescript": "^5.7.0"
+  }
+}

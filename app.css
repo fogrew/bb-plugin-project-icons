@@ -1,0 +1,9 @@
+.bb-project-icons-row .project-colors-control { display: none !important; }
+.bb-project-icons-image { display: inline-block; width: 20px; height: 20px; flex: 0 0 20px; object-fit: contain; border-radius: 4px; pointer-events: none; margin-right: 2px; }
+.bb-project-icons-settings { display: grid; gap: 12px; max-width: 420px; font-size: 14px; }
+.bb-project-icons-settings select, .bb-project-icons-settings input, .bb-project-icons-settings button { color: inherit; background: var(--background); border: 1px solid var(--border); border-radius: 6px; padding: 7px 9px; }
+.bb-project-icons-settings button { justify-self: start; cursor: pointer; }
+.bb-project-icons-settings button:disabled { opacity: .5; cursor: default; }
+.bb-project-icons-preview { display: flex; align-items: center; gap: 10px; min-height: 36px; }
+.bb-project-icons-preview img { width: 20px; height: 20px; object-fit: contain; }
+.bb-project-icons-settings [role=alert] { color: var(--destructive); }
