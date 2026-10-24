@@ -14,10 +14,12 @@ when this plan was created; consult GitHub before starting a session.
   Dependencies: #2. Priority: P1.
 - [ ] [#4](https://github.com/fogrew/bb-plugin-project-icons/issues/4) feat(editor): add image cropping and a 20 px icon preview
   Dependencies: #3. Priority: P1.
-- [ ] [#5](https://github.com/fogrew/bb-plugin-project-icons/issues/5) feat(upload): add drag-and-drop, paste and undo removal
+- [ ] [#5](https://github.com/fogrew/bb-plugin-project-icons/issues/5) feat(upload): add drag-and-drop and paste image input
   Dependencies: #4. Priority: P1.
+- [ ] [#24](https://github.com/fogrew/bb-plugin-project-icons/issues/24) feat(undo): restore removed icons without overwriting newer changes
+  Dependencies: #5. Priority: P1.
 - [ ] [#6](https://github.com/fogrew/bb-plugin-project-icons/issues/6) chore(release): verify and prepare v0.2.0
-  Dependencies: #1, #2, #3, #4, #5. Priority: P1.
+  Dependencies: #1, #2, #3, #4, #5, #24. Priority: P1.
 
 ## v0.3.0 — Icon chooser
 
