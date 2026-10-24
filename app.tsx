@@ -4,6 +4,7 @@ import type { rpcContract } from "./server";
 import { ProjectList } from "./components/project-list";
 import { createSettingsState } from "./settings-state";
 import { ImageEditor } from "./components/image-editor";
+import { RemovalControls } from "./components/removal-controls";
 import "./app.css";
 
 const base = "/api/v1/plugins/project-icons/http";
@@ -14,9 +15,10 @@ function Settings() {
   const state = useMemo(() => createSettingsState({
     list: () => rpc.call("list"),
     save: (input) => rpc.call("save", input),
-    remove: (input) => rpc.call("remove", input),
+    remove: (input) => rpc.call("removeWithUndo", input),
+    restore: (input) => rpc.call("restore", input),
   }, () => window.dispatchEvent(new Event("bb-project-icons-changed"))), [rpc]);
-  const { projects, selected, loading, refreshing, loadError, operation, notice } =
+  const { projects, selected, loading, refreshing, loadError, operation } =
     useSyncExternalStore(state.subscribe, state.getSnapshot);
   const [query, setQuery] = useState("");
   useEffect(() => {
@@ -45,14 +47,7 @@ function Settings() {
           <small className="bb-project-icons-id">{project.id}</small>}
       </div>
       <ImageEditor key={project.id} project={project} state={state} busy={busy} />
-      <button type="button" disabled={project.revision === null || busy}
-        onClick={() => void state.mutate("remove")}>Remove icon</button>
-      {operation?.projectId === selected && <p role="status">
-        {operation.kind === "save" ? "Uploading icon…" : "Removing icon…"}
-      </p>}
-      {operation && operation.projectId !== selected &&
-        <p role="status">Finishing an icon change for another project…</p>}
-      {notice && <p role={notice.kind === "error" ? "alert" : "status"}>{notice.text}</p>}
+      <RemovalControls project={project} state={state} />
     </fieldset>}
   </div>;
 }
