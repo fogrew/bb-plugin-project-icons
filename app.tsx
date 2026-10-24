@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useMemo, useState, useSyncExternalStore } from "react";
 import { definePluginApp, useRealtime, useRpc } from "@get-bb/plugin-sdk/app";
 import type { rpcContract } from "./server";
+import { ProjectList } from "./components/project-list";
+import { createSettingsState } from "./settings-state";
 import "./app.css";
 
-type Project = { id: string; name: string; revision: number | null };
 const base = "/api/v1/plugins/project-icons/http";
 const iconUrl = (id: string, revision: number) => `${base}/icon?projectId=${encodeURIComponent(id)}&v=${revision}`;
 
@@ -32,51 +33,58 @@ async function normalize(file: File): Promise<string> {
 
 function Settings() {
   const rpc = useRpc<typeof rpcContract>();
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [selected, setSelected] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [message, setMessage] = useState("");
-  const refresh = () => { void rpc.call("list").then(({ projects: rows }) => {
-    setProjects(rows);
-    setSelected((current) => current && rows.some((row) => row.id === current) ? current : rows[0]?.id ?? "");
-  }, (cause) => setError(String(cause))); };
-  useEffect(refresh, [rpc]);
-  useRealtime("changed", refresh);
+  const state = useMemo(() => createSettingsState({
+    list: () => rpc.call("list"),
+    save: (input) => rpc.call("save", input),
+    remove: (input) => rpc.call("remove", input),
+  }, () => window.dispatchEvent(new Event("bb-project-icons-changed"))), [rpc]);
+  const { projects, selected, loading, refreshing, loadError, operation, notice } =
+    useSyncExternalStore(state.subscribe, state.getSnapshot);
+  const [query, setQuery] = useState("");
+  const fileId = useId();
+  useEffect(() => {
+    void state.refresh();
+    return state.cancel;
+  }, [state]);
+  useRealtime("changed", () => { void state.refresh(); });
   const project = projects.find((row) => row.id === selected);
-  const changed = () => { refresh(); window.dispatchEvent(new Event("bb-project-icons-changed")); };
-  const upload = async (file?: File) => {
-    if (!file || !selected || busy) return;
-    setBusy(true); setError(""); setMessage("");
-    try {
-      await rpc.call("save", { projectId: selected, base64: await normalize(file) });
-      changed(); setMessage("Icon saved.");
-    } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
-    finally { setBusy(false); }
-  };
-  const remove = async () => {
-    if (!selected || busy) return;
-    setBusy(true); setError(""); setMessage("");
-    try {
-      await rpc.call("remove", { projectId: selected });
-      changed(); setMessage("Icon removed.");
-    } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
-    finally { setBusy(false); }
-  };
+  const busy = operation !== null;
   return <div className="bb-project-icons-settings">
-    <label htmlFor="bb-project-icons-project">Project</label>
-    <select id="bb-project-icons-project" value={selected} onChange={(event) => setSelected(event.target.value)}>
-      {projects.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
-    </select>
-    <div className="bb-project-icons-preview">
-      {project?.revision ? <img src={iconUrl(project.id, project.revision)} alt="" /> : <span aria-hidden="true">No icon</span>}
-      <span>{project?.name ?? "Select a project"}</span>
-    </div>
-    <label htmlFor="bb-project-icons-file">Upload icon (PNG, JPEG, or WebP; up to 2 MB)</label>
-    <input id="bb-project-icons-file" type="file" accept="image/png,image/jpeg,image/webp" disabled={!selected || busy} onChange={(event) => { void upload(event.target.files?.[0]); event.target.value = ""; }} />
-    <button type="button" disabled={!project?.revision || busy} onClick={() => void remove()}>Remove icon</button>
-    {error && <p role="alert">{error}</p>}
-    {message && <p role="status">{message}</p>}
+    {loading && <p role="status">Loading projects…</p>}
+    {loadError && <div className="bb-project-icons-error">
+      <p role="alert">{loadError}</p>
+      <button type="button" disabled={refreshing} onClick={() => void state.refresh()}>Retry</button>
+    </div>}
+    {!loading && refreshing && <p role="status" className="bb-project-icons-help">Updating projects…</p>}
+    {!loading && !loadError && projects.length === 0 &&
+      <p role="status">No projects yet. Create a project in BB to assign an icon.</p>}
+    {projects.length > 0 && <ProjectList projects={projects} selected={selected}
+      query={query} onQuery={setQuery} onSelect={state.select} iconUrl={iconUrl} />}
+    {project && <fieldset className="bb-project-icons-editor">
+      <legend>Icon for {project.name}</legend>
+      <div className="bb-project-icons-preview">
+        {project.revision !== null ? <img src={iconUrl(project.id, project.revision)} alt="Current project icon" /> : <span>No icon assigned</span>}
+        {projects.some((row) => row.id !== project.id && row.name === project.name) &&
+          <small className="bb-project-icons-id">{project.id}</small>}
+      </div>
+      <label htmlFor={fileId}>Upload icon</label>
+      <p id={`${fileId}-help`} className="bb-project-icons-help">PNG, JPEG, or WebP; up to 2 MB. Images are fitted to 64 × 64 pixels.</p>
+      <input id={fileId} type="file" accept="image/png,image/jpeg,image/webp"
+        aria-describedby={`${fileId}-help`} disabled={busy}
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (file) void state.mutate("save", () => normalize(file));
+          event.target.value = "";
+        }} />
+      <button type="button" disabled={project.revision === null || busy}
+        onClick={() => void state.mutate("remove")}>Remove icon</button>
+      {operation?.projectId === selected && <p role="status">
+        {operation.kind === "save" ? "Uploading icon…" : "Removing icon…"}
+      </p>}
+      {operation && operation.projectId !== selected &&
+        <p role="status">Finishing an icon change for another project…</p>}
+      {notice && <p role={notice.kind === "error" ? "alert" : "status"}>{notice.text}</p>}
+    </fieldset>}
   </div>;
 }
 
