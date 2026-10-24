@@ -79,6 +79,7 @@ Git Flow, signed Conventional Commits, CI and Keep a Changelog; searchable proje
 - [#4](https://github.com/fogrew/bb-plugin-project-icons/issues/4) feat(editor): add image cropping and a 20 px icon preview
 - [#5](https://github.com/fogrew/bb-plugin-project-icons/issues/5) feat(upload): add drag-and-drop and paste image input
 - [#24](https://github.com/fogrew/bb-plugin-project-icons/issues/24) feat(undo): restore removed icons without overwriting newer changes
+- [#28](https://github.com/fogrew/bb-plugin-project-icons/issues/28) fix(validation): reject malformed PNG data before storing icons
 - [#6](https://github.com/fogrew/bb-plugin-project-icons/issues/6) chore(release): verify and prepare v0.2.0
 
 ### v0.3.0 — Icon chooser
@@ -132,6 +133,10 @@ See each issue for executable acceptance criteria and verification.
 File input (#5) and safe removal undo (#24) are separate focused slices. Undo
 requires server-side conditional restoration, so #24 follows #5 and gates the
 v0.2.0 release checkpoint along with the existing dependencies.
+Issue #28 fixes the confirmed acceptance of header-only, undecodable PNG data.
+It depends on #2 for integration and also gates #6. Keep validation correctness,
+bounded decoding and real browser PNG compatibility in this focused fix; emoji
+#7 can develop independently against the existing wire/storage representation.
 After each feature batch, a release issue is the explicit checkpoint for user
 review, live evidence, compatibility, version/changelog consistency and release approval.
 Issue #2 (CI) and issue #3 (settings UI) can be developed independently while

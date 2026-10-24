@@ -18,8 +18,10 @@ when this plan was created; consult GitHub before starting a session.
   Dependencies: #4. Priority: P1.
 - [ ] [#24](https://github.com/fogrew/bb-plugin-project-icons/issues/24) feat(undo): restore removed icons without overwriting newer changes
   Dependencies: #5. Priority: P1.
+- [ ] [#28](https://github.com/fogrew/bb-plugin-project-icons/issues/28) fix(validation): reject malformed PNG data before storing icons
+  Dependencies: #2. Priority: P1.
 - [ ] [#6](https://github.com/fogrew/bb-plugin-project-icons/issues/6) chore(release): verify and prepare v0.2.0
-  Dependencies: #1, #2, #3, #4, #5, #24. Priority: P1.
+  Dependencies: #1, #2, #3, #4, #5, #24, #28. Priority: P1.
 
 ## v0.3.0 — Icon chooser
 
