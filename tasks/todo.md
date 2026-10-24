@@ -6,57 +6,64 @@ when this plan was created; consult GitHub before starting a session.
 
 ## v0.2.0 — Workflow & image editor
 
-- [ ] [#1](https://github.com/fogrew/bb-plugin-project-icons/issues/1) chore(workflow): закрепить Git Flow и правила работы отдельных сессий
+- [ ] [#1](https://github.com/fogrew/bb-plugin-project-icons/issues/1) chore(workflow): define Git Flow and focused-session conventions
   Dependencies: none. Priority: P0.
-- [ ] [#2](https://github.com/fogrew/bb-plugin-project-icons/issues/2) ci: проверять сборку и соглашения в pull request
+- [ ] [#2](https://github.com/fogrew/bb-plugin-project-icons/issues/2) ci: validate builds and conventions in pull requests
   Dependencies: #1. Priority: P0.
-- [ ] [#3](https://github.com/fogrew/bb-plugin-project-icons/issues/3) feat(settings): список проектов с поиском и состояниями
+- [ ] [#3](https://github.com/fogrew/bb-plugin-project-icons/issues/3) feat(settings): add a searchable project list with explicit states
   Dependencies: #2. Priority: P1.
-- [ ] [#4](https://github.com/fogrew/bb-plugin-project-icons/issues/4) feat(editor): кадрирование и предпросмотр иконки в 20 px
+- [ ] [#4](https://github.com/fogrew/bb-plugin-project-icons/issues/4) feat(editor): add image cropping and a 20 px icon preview
   Dependencies: #3. Priority: P1.
-- [ ] [#5](https://github.com/fogrew/bb-plugin-project-icons/issues/5) feat(upload): drag-and-drop, вставка и отмена удаления
+- [ ] [#5](https://github.com/fogrew/bb-plugin-project-icons/issues/5) feat(upload): add drag-and-drop, paste and undo removal
   Dependencies: #4. Priority: P1.
-- [ ] [#6](https://github.com/fogrew/bb-plugin-project-icons/issues/6) chore(release): проверить и подготовить v0.2.0
+- [ ] [#6](https://github.com/fogrew/bb-plugin-project-icons/issues/6) chore(release): verify and prepare v0.2.0
   Dependencies: #1, #2, #3, #4, #5. Priority: P1.
 
 ## v0.3.0 — Icon chooser
 
-- [ ] [#7](https://github.com/fogrew/bb-plugin-project-icons/issues/7) feat(icons): назначать emoji с поиском и недавними
+- [ ] [#7](https://github.com/fogrew/bb-plugin-project-icons/issues/7) feat(icons): add emoji selection with search and recents
   Dependencies: #6. Priority: P1.
-- [ ] [#8](https://github.com/fogrew/bb-plugin-project-icons/issues/8) feat(icons): встроенные значки и инициалы с цветом
+- [ ] [#8](https://github.com/fogrew/bb-plugin-project-icons/issues/8) feat(icons): add built-in glyphs and colored initials
   Dependencies: #7. Priority: P1.
-- [ ] [#9](https://github.com/fogrew/bb-plugin-project-icons/issues/9) chore(release): проверить и подготовить v0.3.0
+- [ ] [#9](https://github.com/fogrew/bb-plugin-project-icons/issues/9) chore(release): verify and prepare v0.3.0
   Dependencies: #8. Priority: P1.
 
 ## v0.4.0 — Contextual setup
 
-- [ ] [#10](https://github.com/fogrew/bb-plugin-project-icons/issues/10) feat(sidebar): открыть редактор из контекста проекта через SDK
+- [ ] [#10](https://github.com/fogrew/bb-plugin-project-icons/issues/10) feat(sidebar): open the icon editor from project context through the SDK
   Dependencies: #9. Priority: P1.
-- [ ] [#11](https://github.com/fogrew/bb-plugin-project-icons/issues/11) feat(discovery): предлагать иконки из файлов репозитория
+- [ ] [#11](https://github.com/fogrew/bb-plugin-project-icons/issues/11) feat(discovery): suggest icons from repository files
   Dependencies: #9. Priority: P2.
-- [ ] [#12](https://github.com/fogrew/bb-plugin-project-icons/issues/12) chore(release): проверить и подготовить v0.4.0
+- [ ] [#12](https://github.com/fogrew/bb-plugin-project-icons/issues/12) chore(release): verify and prepare v0.4.0
   Dependencies: #10, #11. Priority: P2.
 
 ## v0.5.0 — Appearance & portability
 
-- [ ] [#13](https://github.com/fogrew/bb-plugin-project-icons/issues/13) feat(appearance): варианты тем и совместимость с Project Colors
+- [ ] [#13](https://github.com/fogrew/bb-plugin-project-icons/issues/13) feat(appearance): add theme variants and Project Colors compatibility
   Dependencies: #12. Priority: P2.
-- [ ] [#14](https://github.com/fogrew/bb-plugin-project-icons/issues/14) feat(portability): экспорт и импорт иконок с предпросмотром
+- [ ] [#14](https://github.com/fogrew/bb-plugin-project-icons/issues/14) feat(portability): export and import icons with a preview
   Dependencies: #12. Priority: P2.
-- [ ] [#15](https://github.com/fogrew/bb-plugin-project-icons/issues/15) chore(release): проверить и подготовить v0.5.0
+- [ ] [#15](https://github.com/fogrew/bb-plugin-project-icons/issues/15) chore(release): verify and prepare v0.5.0
   Dependencies: #13, #14. Priority: P2.
 
 ## v1.0.0 — Stable marketplace release
 
-- [ ] [#16](https://github.com/fogrew/bb-plugin-project-icons/issues/16) test(stability): проверить контракты и готовность к 1.0
+- [ ] [#16](https://github.com/fogrew/bb-plugin-project-icons/issues/16) test(stability): audit contracts and readiness for 1.0
   Dependencies: #15. Priority: P1.
-- [ ] [#17](https://github.com/fogrew/bb-plugin-project-icons/issues/17) docs(marketplace): подготовить описание и настоящие скриншоты
+- [ ] [#17](https://github.com/fogrew/bb-plugin-project-icons/issues/17) docs(marketplace): prepare the overview and authentic screenshots
   Dependencies: #16. Priority: P2.
-- [ ] [#18](https://github.com/fogrew/bb-plugin-project-icons/issues/18) chore(release): выпустить v1.0.0 и подать заявку в маркетплейс
+- [ ] [#18](https://github.com/fogrew/bb-plugin-project-icons/issues/18) chore(release): release v1.0.0 and submit to the marketplace
   Dependencies: #16, #17. Priority: P2.
 
-## Next session
+## Session coordination
 
-Start with [#1](https://github.com/fogrew/bb-plugin-project-icons/issues/1):
-establish the repository workflow and changelog. Review and merge the planning
-PR only after the user's explicit command. Then use a fresh branch from develop.
+Workflow [#1](https://github.com/fogrew/bb-plugin-project-icons/issues/1) and the
+planning PR await explicit merge approval. Independent CI work in
+[#2](https://github.com/fogrew/bb-plugin-project-icons/issues/2) and settings UI in
+[#3](https://github.com/fogrew/bb-plugin-project-icons/issues/3) may proceed in
+separate worktrees while those PRs are pending. Use the live Project for current status.
+
+Dependencies listed above are integration/release gates, not a blanket prohibition
+on independent development. Disclose actual code dependencies and stacked PR bases,
+then revalidate and retarget after the dependencies are accepted. Every merge still
+requires a fresh explicit user command; do not mark issues Done before acceptance.
