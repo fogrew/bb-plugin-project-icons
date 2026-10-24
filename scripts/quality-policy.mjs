@@ -12,8 +12,8 @@ export function validateBranch(branch) {
 }
 
 export function validateCommit({ subject, parents, signed }) {
+  if (!signed) throw new Error("Commits must contain a GPG signature; sign and verify each commit locally.");
   if (parents > 1) {
-    if (!signed) throw new Error("Merge commits must contain a GPG signature; create and verify a signed merge locally.");
     if (conventional.test(subject) || generatedMerge.test(subject)) return;
     throw new Error("Signed merge subject must be Conventional Commits or a standard Git/GitHub merge subject.");
   }

@@ -35,13 +35,13 @@ Supported types are `feat`, `fix`, `docs`, `chore`, `ci`, `test`,
 This is a subject check, not a complete body/footer parser; breaking changes
 still require the migration footer from the contribution policy.
 
-Real merge commits must contain an OpenPGP signature header and either a
-conventional subject or a standard Git/GitHub subject such as
+Every PR commit must contain an OpenPGP signature header. Real merge commits
+must also have either a conventional subject or a standard Git/GitHub subject such as
 `Merge branch 'develop' into ci/2-pr-quality-gates` or
 `Merge pull request #20 from fogrew/chore/1-workflow-conventions`.
 A one-parent commit cannot use the merge exemption.
 
-CI checks signature-envelope presence only: it has no trusted public-key
+For both ordinary and merge commits, CI checks signature-envelope presence only: it has no trusted public-key
 keyring and does not certify signer identity or cryptographic validity.
 Every real commit and merge still requires local GPG signing and successful
 `git verify-commit <sha>` before pushing. Preserve signed history; use additive

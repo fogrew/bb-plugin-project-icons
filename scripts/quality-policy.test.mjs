@@ -22,6 +22,9 @@ test("rejects malformed conventional subjects and fake merge subjects", () => {
     assert.throws(() => validateCommit({ subject, parents: 1, signed: true }), /Invalid commit subject/);
   }
 });
+test("rejects unsigned ordinary commits even with a conventional subject", () => {
+  assert.throws(() => validateCommit({ subject: "ci: add quality gates", parents: 1, signed: false }), /GPG signature/);
+});
 test("allows standard signed merges and conventional signed merges", () => {
   for (const subject of ["Merge branch 'develop' into ci/2-pr-quality-gates", "Merge pull request #20 from fogrew/chore/1-workflow-conventions", "chore: integrate develop"]) {
     assert.doesNotThrow(() => validateCommit({ subject, parents: 2, signed: true }));
