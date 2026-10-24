@@ -1,13 +1,32 @@
 export type Crop = { mode: "fit" | "fill"; zoom: number; x: number; y: number };
 export const defaultCrop: Crop = { mode: "fit", zoom: 1, x: 0, y: 0 };
 
-export function imageRect(width: number, height: number, crop: Crop) {
+function scaledSize(width: number, height: number, crop: Crop) {
   if (![width, height, crop.zoom, crop.x, crop.y].every(Number.isFinite) ||
       width <= 0 || height <= 0 || crop.zoom < 1 || crop.zoom > 4 ||
-      Math.abs(crop.x) > 64 || Math.abs(crop.y) > 64) throw new Error("Invalid image geometry.");
+      !["fit", "fill"].includes(crop.mode)) throw new Error("Invalid image geometry.");
   const scale = (crop.mode === "fit" ? Math.min : Math.max)(64 / width, 64 / height) * crop.zoom;
   const w = width * scale, h = height * scale;
-  return { x: (64 - w) / 2 + crop.x, y: (64 - h) / 2 + crop.y, width: w, height: h };
+  if (![w, h].every((size) => Number.isFinite(size) && size > 0)) throw new Error("Invalid scaled dimensions.");
+  return { width: w, height: h };
+}
+
+export function offsetBounds(width: number, height: number, crop: Crop) {
+  const size = scaledSize(width, height, crop);
+  // Align either source edge with the output edge, including letterboxed Fit images.
+  return { x: Math.abs(size.width - 64) / 2, y: Math.abs(size.height - 64) / 2 };
+}
+
+export function clampCrop(width: number, height: number, crop: Crop): Crop {
+  const bounds = offsetBounds(width, height, crop);
+  const clamp = (value: number, limit: number) => limit === 0 ? 0 : Math.max(-limit, Math.min(limit, value));
+  return { ...crop, x: clamp(crop.x, bounds.x), y: clamp(crop.y, bounds.y) };
+}
+
+export function imageRect(width: number, height: number, crop: Crop) {
+  const size = scaledSize(width, height, crop);
+  const bounded = clampCrop(width, height, crop);
+  return { x: (64 - size.width) / 2 + bounded.x, y: (64 - size.height) / 2 + bounded.y, ...size };
 }
 
 export function drawIcon(canvas: HTMLCanvasElement, bitmap: ImageBitmap, crop: Crop) {
