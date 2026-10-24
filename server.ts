@@ -1,13 +1,19 @@
 import { defineRpcContract, type BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
+import { randomUUID } from "node:crypto";
 
 const idSchema = z.string().regex(/^proj_[a-z0-9]{10,32}$/);
 const imageSchema = z.string().regex(/^[A-Za-z0-9+/]+={0,2}$/).max(90000);
 const MAX_PNG_BYTES = 65536;
+const UNDO_MS = 15000;
+const MAX_UNDO_OFFERS = 16;
+const undoSchema = z.object({ token: z.string().uuid(), expiresAt: z.number() });
 export const rpcContract = defineRpcContract({
   list: { input: z.null(), output: z.object({ projects: z.array(z.object({ id: idSchema, name: z.string(), revision: z.number().nullable() })) }) },
   save: { input: z.object({ projectId: idSchema, base64: imageSchema }).strict(), output: z.object({ revision: z.number() }) },
   remove: { input: z.object({ projectId: idSchema }).strict(), output: z.object({ removed: z.boolean() }) },
+  removeWithUndo: { input: z.object({ projectId: idSchema }).strict(), output: z.object({ removed: z.boolean(), undo: undoSchema.nullable() }) },
+  restore: { input: z.object({ projectId: idSchema, token: z.string().uuid() }).strict(), output: z.object({ status: z.enum(["restored", "expired", "conflict"]), revision: z.number().optional() }) },
 });
 
 type Index = Record<string, number>;
@@ -20,7 +26,33 @@ function decodePng(base64: string): Buffer {
 }
 
 export default function plugin(bb: BbPluginApi) {
+  type Offer = { token: string; expiresAt: number; deadline: number; base64: string };
+  const offers = new Map<string, Offer>();
+  let cleanup: ReturnType<typeof setTimeout> | undefined;
+  let disposed = false;
+  const prune = () => {
+    if (cleanup) clearTimeout(cleanup);
+    cleanup = undefined;
+    for (const [id, offer] of offers) {
+      if (performance.now() >= offer.deadline || Date.now() >= offer.expiresAt) offers.delete(id);
+    }
+    if (offers.size && !disposed) {
+      const delay = Math.min(...Array.from(offers.values(), offer => offer.deadline - performance.now()));
+      cleanup = setTimeout(prune, Math.max(1, delay));
+      cleanup.unref();
+    }
+  };
+  bb.onDispose(() => { disposed = true; if (cleanup) clearTimeout(cleanup); offers.clear(); });
   const readIndex = async (): Promise<Index> => (await bb.storage.kv.get<Index>("index")) ?? {};
+  const nextRevision = async (index: Index) => {
+    let revision = Math.max(Date.now(), (await bb.storage.kv.get<number>("revisionHighwater")) ?? 0);
+    for (const value of Object.values(index)) revision = Math.max(revision, value);
+    revision += 1;
+    if (!Number.isSafeInteger(revision)) throw new Error("Icon revision exhausted");
+    // Reserve before image writes: failed mutations may leave gaps, never reused cache keys.
+    await bb.storage.kv.set("revisionHighwater", revision);
+    return revision;
+  };
   let pending: Promise<void> = Promise.resolve();
   const serialize = <T>(work: () => Promise<T>): Promise<T> => {
     const result = pending.then(work);
@@ -30,6 +62,8 @@ export default function plugin(bb: BbPluginApi) {
   const reconcile = () => serialize(async () => {
     const projects = await bb.sdk.projects.list();
     const projectIds = new Set(projects.map((project) => project.id));
+    for (const id of offers.keys()) if (!projectIds.has(id)) offers.delete(id);
+    prune();
     const index = await readIndex();
     let changed = false;
     for (const id of Object.keys(index)) {
@@ -42,6 +76,27 @@ export default function plugin(bb: BbPluginApi) {
     return { projects, index };
   });
   const projectExists = async (id: string): Promise<boolean> => (await bb.sdk.projects.list()).some((project) => project.id === id);
+  const remove = (projectId: string, withUndo: boolean) => serialize(async () => {
+    const index = await readIndex();
+    const base64 = withUndo && projectId in index ? await bb.storage.kv.get<string>(`image:${projectId}`) : null;
+    const removed = projectId in index;
+    // KV has no multi-key transaction. Fail closed even on a partially failed write.
+    offers.delete(projectId);
+    prune();
+    delete index[projectId];
+    await bb.storage.kv.delete(`image:${projectId}`);
+    await bb.storage.kv.set("index", index);
+    let undo = null;
+    if (base64 && base64.length <= 90000 && !disposed) {
+      const offer = { token: randomUUID(), expiresAt: Date.now() + UNDO_MS, deadline: performance.now() + UNDO_MS, base64 };
+      while (offers.size >= MAX_UNDO_OFFERS) offers.delete(offers.keys().next().value!);
+      offers.set(projectId, offer);
+      prune();
+      undo = { token: offer.token, expiresAt: offer.expiresAt };
+    }
+    bb.realtime.publish("changed", { projectId });
+    return { removed, undo };
+  });
   bb.rpc.register(rpcContract, {
     list: async () => {
       const { projects, index } = await reconcile();
@@ -50,20 +105,35 @@ export default function plugin(bb: BbPluginApi) {
     save: ({ projectId, base64 }) => serialize(async () => {
       if (!(await projectExists(projectId))) throw new Error("Project not found");
       const bytes = decodePng(base64);
-      const revision = Date.now();
+      const index = await readIndex();
+      offers.delete(projectId);
+      prune();
+      const revision = await nextRevision(index);
       await bb.storage.kv.set(`image:${projectId}`, bytes.toString("base64"));
-      await bb.storage.kv.set("index", { ...(await readIndex()), [projectId]: revision });
+      await bb.storage.kv.set("index", { ...index, [projectId]: revision });
       bb.realtime.publish("changed", { projectId });
       return { revision };
     }),
-    remove: ({ projectId }) => serialize(async () => {
+    remove: async ({ projectId }) => ({ removed: (await remove(projectId, false)).removed }),
+    removeWithUndo: ({ projectId }) => remove(projectId, true),
+    restore: ({ projectId, token }) => serialize(async () => {
+      const exists = await projectExists(projectId);
       const index = await readIndex();
-      const removed = projectId in index;
-      delete index[projectId];
-      await bb.storage.kv.delete(`image:${projectId}`);
-      await bb.storage.kv.set("index", index);
+      const currentImage = await bb.storage.kv.get<string>(`image:${projectId}`);
+      const offer = offers.get(projectId);
+      if (disposed || !offer || offer.token !== token) return { status: "conflict" as const };
+      if (Date.now() >= offer.expiresAt || performance.now() >= offer.deadline) {
+        offers.delete(projectId); prune();
+        return { status: "expired" as const };
+      }
+      // Authority is checked and consumed in the mutation queue, after every awaited lookup.
+      offers.delete(projectId); prune();
+      if (!exists || projectId in index || currentImage) return { status: "conflict" as const };
+      const revision = await nextRevision(index);
+      await bb.storage.kv.set(`image:${projectId}`, offer.base64);
+      await bb.storage.kv.set("index", { ...index, [projectId]: revision });
       bb.realtime.publish("changed", { projectId });
-      return { removed };
+      return { status: "restored" as const, revision };
     }),
   });
   bb.http.route("GET", "/icons", async (context) => {
