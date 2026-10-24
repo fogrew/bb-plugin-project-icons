@@ -17,6 +17,9 @@ protection separately. This PR does not change branch protection.
 The job checks branch/commit conventions and manifest consistency, runs
 `npm ci`, then `npm run check` (policy, typecheck, build, backend and validator
 tests). Finally it checks that installation did not change either package file.
+Tests are discovered with root `*.test.mjs` and `scripts/*.test.mjs` globs so
+additional root suites, including the settings-state tests from pending PR #21,
+enter CI automatically after integration without another package-script edit.
 The default checkout builds GitHub's proposed merge result; commit conventions
 use the event's actual base/head SHAs, excluding the synthetic test merge.
 

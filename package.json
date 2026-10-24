@@ -10,7 +10,7 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "node --test server.test.mjs scripts/*.test.mjs",
+    "test": "node --test *.test.mjs scripts/*.test.mjs",
     "check": "npm run check:quality && npm run typecheck && npm run build && npm test",
     "check:quality": "node scripts/check-quality.mjs"
   },
