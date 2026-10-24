@@ -16,8 +16,6 @@ jobs:
     name: PR quality gates
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    env:
-      BB_DATA_DIR: ${{ runner.temp }}/project-icons-build
     steps:
       # No PR-controlled text is interpolated into shell commands.
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -33,6 +31,8 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
       - name: Typecheck, build and test
+        env:
+          BB_DATA_DIR: ${{ runner.temp }}/project-icons-build
         run: npm run check
       - name: Verify installation preserved the manifest and lockfile
         run: git diff --exit-code -- package.json package-lock.json
