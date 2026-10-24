@@ -36,8 +36,10 @@ when this plan was created; consult GitHub before starting a session.
   Dependencies: #9. Priority: P1.
 - [ ] [#11](https://github.com/fogrew/bb-plugin-project-icons/issues/11) feat(discovery): suggest icons from repository files
   Dependencies: #9. Priority: P2.
+- [ ] [#25](https://github.com/fogrew/bb-plugin-project-icons/issues/25) feat(integrations): exchange project artwork through optional plugin adapters
+  Dependencies: #11. Priority: P2.
 - [ ] [#12](https://github.com/fogrew/bb-plugin-project-icons/issues/12) chore(release): verify and prepare v0.4.0
-  Dependencies: #10, #11. Priority: P2.
+  Dependencies: #10, #11, #25. Priority: P2.
 
 ## v0.5.0 — Appearance & portability
 

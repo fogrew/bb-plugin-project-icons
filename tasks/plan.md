@@ -91,11 +91,24 @@ Emoji, built-in glyphs and initials with consistent colors; preserve existing up
 
 ### v0.4.0 — Contextual setup
 
-Check current BB SDK integration first; add contextual icon editing and opt-in repository asset discovery using supported APIs.
+Check current BB SDK integration first; add contextual icon editing, opt-in repository asset discovery and optional plugin interoperability using supported APIs.
 
 - [#10](https://github.com/fogrew/bb-plugin-project-icons/issues/10) feat(sidebar): open the icon editor from project context through the SDK
 - [#11](https://github.com/fogrew/bb-plugin-project-icons/issues/11) feat(discovery): suggest icons from repository files
+- [#25](https://github.com/fogrew/bb-plugin-project-icons/issues/25) feat(integrations): exchange project artwork through optional plugin adapters
 - [#12](https://github.com/fogrew/bb-plugin-project-icons/issues/12) chore(release): verify and prepare v0.4.0
+
+For #11, inspect Homepage's declared local branding paths and conventional
+favicon/icon/logo discovery. Keep candidate provenance, bounded host-aware reads,
+and explicit preview/confirmation before saving. Discovery works without Homepage.
+See the immutable source references in the issue before reusing implementation code.
+
+Issue #25 adds a documented read-only artwork contract for consumers and optional
+imports from other plugins, starting with Homepage. Manual assignments remain
+authoritative; imports copy selected snapshots unless synchronization is explicitly
+implemented. Handle missing peers, unsupported formats and provider loops. Actual
+display in another plugin may require a separate upstream change: our contract and
+consumer evidence do not establish external adoption or acceptance.
 
 ### v0.5.0 — Appearance & portability
 
@@ -124,7 +137,9 @@ review, live evidence, compatibility, version/changelog consistency and release 
 Issue #2 (CI) and issue #3 (settings UI) can be developed independently while
 workflow PRs await approval. CI readiness remains an integration gate for the UI.
 Issues #10 and #11 can be developed independently once the relevant icon contracts
-are available; #13 and #14 need an agreed shared format before parallel work.
+are available. Issue #25 follows #11 for integration and also gates #12; its
+feasibility research may proceed independently. Issues #13 and #14 need an agreed
+shared format before parallel work.
 Use reviewed dependency branches when necessary and revalidate after integration.
 Limit concurrency to the available resources rather than starting all sessions at once.
 
