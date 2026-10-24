@@ -4,10 +4,7 @@ import { createFakePluginHost } from "@get-bb/plugin-sdk/testing";
 import plugin from "./dist/server.js";
 
 const projectId = "proj_aaaaaaaaaa", otherId = "proj_bbbbbbbbbb";
-const png = Buffer.alloc(45);
-Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]).copy(png);
-png.writeUInt32BE(13, 8); png.write("IHDR", 12);
-png.writeUInt32BE(64, 16); png.writeUInt32BE(64, 20);
+import { transparentPng as png, opaquePng } from "./test-fixtures/png.mjs";
 const base64 = png.toString("base64");
 async function setup(t) {
   const projects = [{ id: projectId, name: "A" }, { id: otherId, name: "B" }];
@@ -62,7 +59,7 @@ test("reload invalidates offers and reserves revisions across clock rollback", a
 test("queued save wins over restore without overwriting the newer bytes", async (t) => {
   const s = await setup(t); await s.save();
   const { undo } = await s.remove();
-  const changed = Buffer.from(png); changed[44] = 9;
+  const changed = opaquePng;
   const saved = s.call("save", { projectId, base64: changed.toString("base64") });
   const restored = s.restore(undo);
   await saved;
