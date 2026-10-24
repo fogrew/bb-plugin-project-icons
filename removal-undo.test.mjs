@@ -121,6 +121,25 @@ test("expiry is checked after awaited lookup inside the mutation queue", async (
   assert.equal((await pending).status, "expired");
 });
 
+test("expiry is checked after a delayed revision highwater read", async (t) => {
+  const s = await setup(t); await s.save();
+  const { undo } = await s.remove();
+  const original = s.bb.storage.kv.get;
+  let release, started;
+  const gate = new Promise(r => { release = r; });
+  const lookup = new Promise(r => { started = r; });
+  s.bb.storage.kv.get = async key => {
+    if (key === "revisionHighwater") { started(); await gate; }
+    return original(key);
+  };
+  const pending = s.restore(undo);
+  await lookup;
+  t.mock.method(Date, "now", () => undo.expiresAt);
+  release();
+  assert.equal((await pending).status, "expired");
+  assert.equal((await s.call("list", null)).projects[0].revision, null);
+});
+
 for (const method of ["save", "remove", "restore"]) {
   for (const key of ["index", `image:${projectId}`]) {
     test(`failed ${method} write to ${key} invalidates the old offer`, async (t) => {

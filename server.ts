@@ -49,8 +49,6 @@ export default function plugin(bb: BbPluginApi) {
     for (const value of Object.values(index)) revision = Math.max(revision, value);
     revision += 1;
     if (!Number.isSafeInteger(revision)) throw new Error("Icon revision exhausted");
-    // Reserve before image writes: failed mutations may leave gaps, never reused cache keys.
-    await bb.storage.kv.set("revisionHighwater", revision);
     return revision;
   };
   let pending: Promise<void> = Promise.resolve();
@@ -109,6 +107,8 @@ export default function plugin(bb: BbPluginApi) {
       offers.delete(projectId);
       prune();
       const revision = await nextRevision(index);
+      // Reserve before image writes: failed mutations may leave gaps, never reused cache keys.
+      await bb.storage.kv.set("revisionHighwater", revision);
       await bb.storage.kv.set(`image:${projectId}`, bytes.toString("base64"));
       await bb.storage.kv.set("index", { ...index, [projectId]: revision });
       bb.realtime.publish("changed", { projectId });
@@ -120,6 +120,7 @@ export default function plugin(bb: BbPluginApi) {
       const exists = await projectExists(projectId);
       const index = await readIndex();
       const currentImage = await bb.storage.kv.get<string>(`image:${projectId}`);
+      const revision = await nextRevision(index);
       const offer = offers.get(projectId);
       if (disposed || !offer || offer.token !== token) return { status: "conflict" as const };
       if (Date.now() >= offer.expiresAt || performance.now() >= offer.deadline) {
@@ -129,7 +130,7 @@ export default function plugin(bb: BbPluginApi) {
       // Authority is checked and consumed in the mutation queue, after every awaited lookup.
       offers.delete(projectId); prune();
       if (!exists || projectId in index || currentImage) return { status: "conflict" as const };
-      const revision = await nextRevision(index);
+      await bb.storage.kv.set("revisionHighwater", revision);
       await bb.storage.kv.set(`image:${projectId}`, offer.base64);
       await bb.storage.kv.set("index", { ...index, [projectId]: revision });
       bb.realtime.publish("changed", { projectId });
