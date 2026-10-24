@@ -8,17 +8,34 @@ Flow, Conventional Commits, changelog/version policy and the handoff template.
 - Read the assigned issue, dependencies and current Git status first.
 - One issue, one focused BB session, one assigned managed worktree, one branch
   and one reviewable PR. Do not touch another session's branches or worktrees.
-- Start ordinary work at current `origin/develop` and target `develop`.
+- Start ordinary independent work at current `origin/develop` and target `develop`.
   Follow CONTRIBUTING for release/hotfix bases and return PRs.
-- Start only when dependencies are accepted unless the user authorizes an
-  exception. Report blockers to the parent coordinator; split scope growth
-  into concrete follow-up issues.
+- The coordinator has ongoing authorization; no per-issue kickoff approval is
+  required. Independent development may proceed in parallel isolated worktrees.
+- Real code dependencies may use clearly disclosed stacked branches/PRs. Name
+  the dependency issue/PR and actual base, inherited commits and validation
+  limits. Retarget to `develop` only after the dependency merges, then revalidate
+  the diff and checks without rewriting signed history.
+- Distinguish development readiness from integration/release readiness, which
+  requires accepted dependencies, acceptance criteria and relevant checks.
+  Every merge still requires fresh explicit approval for that PR. Report
+  blockers to the parent coordinator; split scope growth into follow-up issues.
 - Respect available user instructions, including RTK, communication preferences,
   Git signing and code-comment rules. Do not invent missing include files.
 - Planning files `tasks/plan.md` and `tasks/todo.md` are owned by the roadmap
   work in [PR #19](https://github.com/fogrew/bb-plugin-project-icons/pull/19)
   until accepted; read that branch for context, but do not copy or edit them
   without coordination.
+
+## Public content language
+
+Across projects, all authored natural-language content published to the Internet
+must be English, including public files, UI text, code comments, commit messages,
+GitHub issue/PR text and release notes. Private conversation may stay Russian.
+Unicode and emoji are allowed; preserve non-English test fixtures explicitly
+necessary to test Unicode behavior. This is not an ASCII-only restriction.
+Only explicit user instructions may authorize narrow exceptions for specified
+content or audiences; record their scope without extending them to other content.
 
 ## Mandatory GPG signing and review
 

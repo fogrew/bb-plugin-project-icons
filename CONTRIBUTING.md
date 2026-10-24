@@ -3,8 +3,21 @@
 Read [AGENTS.md](AGENTS.md), the issue, its dependencies and the current Git
 state before starting. Track status in the [GitHub Project](https://github.com/users/fogrew/projects/8).
 Use one focused BB session, one assigned worktree, one issue branch and one
-reviewable PR. Start only after dependencies are accepted, unless the user
-explicitly authorizes an exception. Split expanding scope into follow-up issues.
+reviewable PR. The coordinator has ongoing authorization to organize development;
+no separate per-issue kickoff approval is required. Split expanding scope into
+follow-up issues.
+
+## Public content language
+
+Across projects, all authored natural-language content published to the Internet
+must be English. This includes public repository files, UI text, code comments,
+commit messages, GitHub issues/PRs and release notes. Private conversation may
+remain Russian. This is a publishing-language rule, not an ASCII-only rule:
+Unicode and emoji are allowed, as are non-English test fixtures explicitly
+needed to test Unicode behavior. Do not translate such fixtures merely to enforce
+English prose. A user may explicitly authorize a narrow exception for specified
+content or a particular audience; record its scope and do not generalize it to
+other public content.
 
 ## Git Flow
 
@@ -30,6 +43,25 @@ Use a numeric issue and lowercase kebab-case slug, for example
 for example `release/0.2.0`. Work only in your assigned managed worktree.
 Fetch before branching; do not switch, reset or clean another session's worktree.
 Do not work directly on `main` or `develop`.
+
+### Parallel development and stacked PRs
+
+Development readiness is separate from integration/release readiness. Independent
+work may proceed in parallel isolated worktrees before other issues are merged.
+Ordinary independent branches start from current `origin/develop` and target
+`develop` as shown above.
+
+For a real code dependency, a stacked branch/PR may start from and target the
+dependency's branch. Clearly disclose the dependency issue/PR, actual branch
+base, inherited commits and validation limits in the PR and handoff. A stacked
+PR is a documented exception to the ordinary `develop` base, not permission to
+merge out of dependency order. Retarget it to `develop` only after its dependency
+has merged, then revalidate its diff and relevant checks against the new base.
+Resolve integration changes with additional signed commits (including a signed
+merge from `develop` only when separately authorized); never rebase or otherwise
+rewrite signed history. Integration/release readiness requires accepted
+dependencies, acceptance criteria and relevant checks. Every merge still needs
+fresh explicit approval for that specific PR.
 
 Each merge, including synchronization PRs, requires a fresh explicit user
 command naming that particular PR. Preserve signed commits, use signed merge
@@ -112,7 +144,8 @@ backend tests. Before build/browser runs, check available machine resources
 and applicable BB instructions. Report local checks, runtime/live evidence and
 untested platforms separately; a build is not live validation.
 
-Target the base in the branch table. Use a Conventional Commit style PR title.
+Target the base in the branch table or disclose the actual stacked dependency
+base as described above. Use a Conventional Commit style PR title.
 Describe the problem, final behavior, changed files, changelog impact, relevant
 checks and limitations. Reference `Related #<issue>` while acceptance is pending;
 do not use automatic closing keywords before acceptance.
@@ -132,7 +165,7 @@ Changed files and changelog impact:
 Checks run, commands and results:
 Runtime/live evidence and untested environments:
 Limitations, blockers and follow-up issues:
-Next unblocked issue (after acceptance; do not start it implicitly):
+Next development-ready issue and separate integration/release dependencies:
 ```
 
 Report blockers promptly. Keep one owner per issue and use separate worktrees

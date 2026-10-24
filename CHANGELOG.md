@@ -13,3 +13,11 @@ with the explicit pre-1.0 policy in [CONTRIBUTING.md](CONTRIBUTING.md).
 - Contributor and agent workflow documentation covering Git Flow, signed
   commits, review approval, version policy and session handoffs
   ([#1](https://github.com/fogrew/bb-plugin-project-icons/issues/1)).
+
+### Changed
+
+- Clarified English-language publishing across projects, with scoped explicit
+  user exceptions and support for Unicode, emoji and necessary test fixtures.
+- Separated parallel development readiness from integration/release readiness;
+  documented stacked dependency PRs and revalidation while preserving signed
+  history and explicit approval for every merge.
