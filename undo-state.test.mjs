@@ -1,10 +1,69 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createSettingsState } from "./settings-state.ts";
+import { createDraft } from "./lib/image-draft.ts";
 
 const a = { id: "proj_aaaaaaaaaa", name: "A", revision: 1 };
 const b = { id: "proj_bbbbbbbbbb", name: "B", revision: null };
 const deferred = () => { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; };
+
+for (const failure of ["save", "prepare"]) {
+  for (const staleOutcome of ["success", "failure"]) {
+    test(`${failure} failure settles an invalidated refresh before its late ${staleOutcome}`, async t => {
+      const pending = deferred();
+      let reads = 0, saves = 0, failSave = true;
+      const { state } = await setup(t, {
+        list: () => ++reads === 2 ? pending.promise : Promise.resolve({ projects: [a, b] }),
+        save: async () => { saves++; if (failSave) throw new Error("save failed"); },
+      });
+      const draft = createDraft(a.id, () => state.getSnapshot().selected);
+      const image = { close() {} };
+      await draft.load(async () => image);
+      t.after(draft.cancel);
+      const refreshing = state.refresh();
+      assert.equal(state.getSnapshot().refreshing, true);
+      await state.mutate("save", async () => {
+        if (failure === "prepare") throw new Error("encode failed");
+        return "png";
+      }, a.id);
+      const failed = state.getSnapshot();
+      assert.equal(failed.refreshing, false);
+      assert.equal(failed.operation, null);
+      assert.equal(failed.selected, a.id);
+      assert.equal(failed.notice.kind, "error");
+      assert.equal(draft.current(), image);
+      assert.equal(saves, failure === "save" ? 1 : 0);
+      if (staleOutcome === "success") pending.resolve({ projects: [b] });
+      else pending.reject(new Error("stale list error"));
+      await refreshing;
+      assert.deepEqual(state.getSnapshot(), failed);
+      failSave = false;
+      await state.mutate("save", async () => { assert.equal(draft.current(), image); return "retry png"; }, a.id);
+      assert.equal(saves, failure === "save" ? 2 : 1);
+      assert.equal(state.getSnapshot().notice.text, "Icon saved.");
+    });
+  }
+}
+
+test("save failure leaves a newer refresh running until that request settles", async t => {
+  const saved = deferred(), listed = deferred();
+  let reads = 0;
+  const { state } = await setup(t, {
+    list: () => ++reads === 1 ? Promise.resolve({ projects: [a, b] }) : listed.promise,
+    save: () => saved.promise,
+  });
+  const saving = state.mutate("save", async () => "png", a.id);
+  await Promise.resolve();
+  const refreshing = state.refresh();
+  saved.reject(new Error("save failed"));
+  await saving;
+  assert.equal(state.getSnapshot().refreshing, true);
+  listed.resolve({ projects: [{ ...a, revision: 42 }, b] });
+  await refreshing;
+  assert.equal(state.getSnapshot().refreshing, false);
+  assert.equal(state.getSnapshot().projects[0].revision, 42);
+  assert.equal(state.getSnapshot().notice.kind, "error");
+});
 async function setup(t, overrides = {}) {
   let rows = [a, b];
   const calls = [];

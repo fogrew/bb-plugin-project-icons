@@ -89,7 +89,7 @@ export function createSettingsState(api: Api, changed: () => void) {
     const generation = lifetime;
     request += 1;
     clearUndo();
-    update({ operation: { projectId, kind }, notice: null });
+    update({ operation: { projectId, kind }, notice: null, refreshing: false });
     try {
       if (kind === "save") {
         if (!prepare) throw new Error("Missing image");
