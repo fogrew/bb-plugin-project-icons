@@ -3,7 +3,7 @@ import { definePluginApp, useRealtime, useRpc } from "@get-bb/plugin-sdk/app";
 import type { rpcContract } from "./server";
 import { ProjectList } from "./components/project-list";
 import { createSettingsState } from "./settings-state";
-import { ImageEditor } from "./components/image-editor";
+import { IconPicker } from "./components/icon-picker";
 import "./app.css";
 
 const base = "/api/v1/plugins/project-icons/http";
@@ -44,7 +44,7 @@ function Settings() {
         {projects.some((row) => row.id !== project.id && row.name === project.name) &&
           <small className="bb-project-icons-id">{project.id}</small>}
       </div>
-      <ImageEditor key={project.id} project={project} state={state} busy={busy} />
+      <IconPicker key={project.id} project={project} state={state} busy={busy} />
       <button type="button" disabled={project.revision === null || busy}
         onClick={() => void state.mutate("remove")}>Remove icon</button>
       {operation?.projectId === selected && <p role="status">
@@ -125,7 +125,7 @@ function mountIcons(signal: AbortSignal): () => void {
 }
 
 export default definePluginApp((app) => {
-  app.slots.settingsSection({ id: "icons", title: "Project icons", description: "Choose an image for each project in the native sidebar.", component: Settings });
+  app.slots.settingsSection({ id: "icons", title: "Project icons", description: "Choose an image or emoji for each project in the native sidebar.", component: Settings });
   app.slots.experimental_appOverlay({ id: "sidebar-updates", component: SidebarUpdates });
   app.contentScripts.register({ id: "sidebar-icons", mount: ({ signal }) => mountIcons(signal) });
 });

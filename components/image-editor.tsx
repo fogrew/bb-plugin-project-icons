@@ -1,11 +1,15 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { createSettingsState, Project } from "../settings-state";
 import { createDraft } from "../lib/image-draft";
-import { clampCrop, decodeImage, defaultCrop, drawIcon, encodeIcon, offsetBounds, type Crop } from "../lib/image-processing";
+import { clampCrop, decodeImage, defaultCrop, drawIcon, snapshotIcon, offsetBounds, type Crop } from "../lib/image-processing";
+import { IconPreview } from "./icon-preview";
 
-type Props = { project: Project; state: ReturnType<typeof createSettingsState>; busy: boolean };
+export type EditorProps = {
+  project: Project; state: ReturnType<typeof createSettingsState>; busy: boolean;
+  registerCancel?: (cancel: () => void) => () => void;
+};
 
-export function ImageEditor({ project, state, busy }: Props) {
+export function ImageEditor({ project, state, busy, registerCancel }: EditorProps) {
   const id = useId();
   const draft = useMemo(() => createDraft<ImageBitmap>(project.id, () => state.getSnapshot().selected), [project.id, state]);
   const [crop, setCrop] = useState<Crop>(defaultCrop);
@@ -23,19 +27,20 @@ export function ImageEditor({ project, state, busy }: Props) {
     setCrop(defaultCrop);
   };
   useEffect(() => {
+    const unregisterCancel = registerCancel?.(cancel);
     // Subscribe directly so even an away-and-back selection in one React batch cancels the draft.
     const unsubscribe = state.subscribe(() => {
       if (state.getSnapshot().selected !== project.id) cancel();
     });
-    return () => { unsubscribe(); request.current += 1; draft.cancel(); };
-  }, [state, project.id, draft]);
+    return () => { unregisterCancel?.(); unsubscribe(); request.current += 1; draft.cancel(); };
+  }, [state, project.id, draft, registerCancel]);
 
   const render = (next: Crop) => {
     const image = draft.current();
     if (!image) return;
     const canvas = document.createElement("canvas");
     drawIcon(canvas, image, next);
-    setPreview(canvas.toDataURL("image/png"));
+    setPreview(snapshotIcon(canvas).url);
   };
   const change = (next: Crop) => {
     const image = draft.current();
@@ -61,14 +66,11 @@ export function ImageEditor({ project, state, busy }: Props) {
     const image = draft.current();
     if (!image || !preview || busy || state.getSnapshot().selected !== project.id) return;
     const version = request.current;
-    await state.mutate("save", async () => {
-      const canvas = document.createElement("canvas");
-      drawIcon(canvas, image, crop);
-      const base64 = await encodeIcon(canvas);
+    const result = await state.mutate("save", async () => {
       if (version !== request.current || draft.current() !== image) throw new Error("Draft cancelled.");
-      return base64;
+      return preview.slice("data:image/png;base64,".length);
     }, project.id);
-    if (version === request.current && state.getSnapshot().notice?.kind === "success") cancel();
+    if (version === request.current && result === "success") cancel();
   };
   const image = draft.current();
   const bounds = image ? offsetBounds(image.width, image.height, crop) : { x: 0, y: 0 };
@@ -84,10 +86,7 @@ export function ImageEditor({ project, state, busy }: Props) {
     {loading && <p role="status">Reading image…</p>}
     {error && <p role="alert">{error}</p>}
     {preview && <>
-      <figure className="bb-project-icons-crop-preview">
-        <img className="bb-project-icons-large-sample" src={preview} alt="Enlarged draft icon" />
-        <figcaption><span className="bb-project-icons-sidebar-sample"><img src={preview} alt="Draft icon at 20 pixels" />{project.name}</span><small>Actual sidebar size: 20 × 20 pixels</small></figcaption>
-      </figure>
+      <IconPreview url={preview} name={project.name} />
       <fieldset disabled={busy} className="bb-project-icons-crop-controls">
         <legend>Image adjustments</legend>
         <div className="bb-project-icons-actions" role="group" aria-label="Image sizing">

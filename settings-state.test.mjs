@@ -6,6 +6,20 @@ import { createDraft } from "./lib/image-draft.ts";
 const a = { id: "proj_aaaaaaaaaa", name: "Same", revision: null };
 const b = { id: "proj_bbbbbbbbbb", name: "Same", revision: 1 };
 
+test("mutation outcome reports confirmed success, failure and skipped operations", async () => {
+  const gate = deferred();
+  const { state } = setup({ save: () => gate.promise });
+  await state.refresh();
+  const saving = state.mutate("save", async () => "png", a.id);
+  assert.equal(await state.mutate("remove"), "skipped");
+  state.select(b.id);
+  gate.resolve();
+  assert.equal(await saving, "success");
+  assert.equal(state.getSnapshot().notice, null);
+  assert.equal(await state.mutate("save", async () => { throw new Error("encode failed"); }), "failed");
+  assert.equal(await state.mutate("save", async () => "png", a.id), "skipped");
+});
+
 test("save rejects a draft owned by another project before preparation", async () => {
   const { state, calls } = setup();
   await state.refresh();

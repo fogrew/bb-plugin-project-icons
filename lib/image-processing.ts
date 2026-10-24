@@ -53,3 +53,14 @@ export async function encodeIcon(canvas: HTMLCanvasElement): Promise<string> {
   for (const byte of bytes) binary += String.fromCharCode(byte);
   return btoa(binary);
 }
+
+// Retain one PNG snapshot so preview and Save use identical encoded bytes.
+export function snapshotIcon(canvas: HTMLCanvasElement) {
+  const url = canvas.toDataURL("image/png");
+  const prefix = "data:image/png;base64,";
+  if (!url.startsWith(prefix)) throw new Error("Could not create PNG.");
+  const base64 = url.slice(prefix.length);
+  if (!base64 || base64.length > 87384 || atob(base64).length > 65536)
+    throw new Error("Processed icon is too large.");
+  return { url, base64 };
+}

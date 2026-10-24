@@ -54,8 +54,8 @@ export function createSettingsState(api: Api, changed: () => void) {
       });
     }
   };
-  const mutate = async (kind: "save" | "remove", prepare?: () => Promise<string>, ownerId?: string) => {
-    if (!snapshot.selected || snapshot.operation || (ownerId !== undefined && ownerId !== snapshot.selected)) return;
+  const mutate = async (kind: "save" | "remove", prepare?: () => Promise<string>, ownerId?: string): Promise<"success" | "failed" | "skipped"> => {
+    if (!snapshot.selected || snapshot.operation || (ownerId !== undefined && ownerId !== snapshot.selected)) return "skipped";
     const projectId = snapshot.selected;
     const version = selectionVersion;
     update({ operation: { projectId, kind }, notice: null });
@@ -72,12 +72,14 @@ export function createSettingsState(api: Api, changed: () => void) {
       if (version === selectionVersion) update({
         notice: { kind: "success", text: kind === "save" ? "Icon saved." : "Icon removed." },
       });
+      return "success";
     } catch {
       if (version === selectionVersion) update({
         notice: { kind: "error", text: kind === "save"
-          ? "Could not upload icon. Choose a PNG, JPEG, or WebP image under 2 MB and try again."
+          ? "Could not save icon. Check the draft and try again."
           : "Could not remove icon. Try again." },
       });
+      return "failed";
     } finally {
       update({ operation: null });
     }
