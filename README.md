@@ -28,7 +28,7 @@ BB has no native project image field. This plugin enhances the native thread-lis
 
 ## Develop
 
-Requires BB 0.46 or newer, Node.js and npm for local development. From the repository directory:
+Requires BB 0.46 or newer, npm, and Node.js 22.19 or newer in the 22.x line, 24.x, or 26.x for local development. From the repository directory:
 
 ```sh
 npm ci
@@ -36,6 +36,6 @@ npm run check
 bb plugin install .
 ```
 
-`npm run check` typechecks, builds the plugin, and runs the backend tests. The tests use the built `dist/server.js`; run `npm run build` before running `npm test` alone. BB manages the installed plugin's icon data outside this repository.
+`npm run check` validates branch and manifest conventions, typechecks, builds the plugin with the pinned standalone toolchain, and runs all root `*.test.mjs` and `scripts/*.test.mjs` suites. This includes backend, settings-state and build/quality-validator tests. Tests use the built `dist/server.js`; run `npm run build` before running `npm test` alone. BB manages the installed plugin's icon data outside this repository.
 
-Run `node --test settings-state.test.mjs` on a Node.js version with built-in TypeScript support to check search, selection retention, out-of-order refreshes and project-scoped mutations. These tests use only Node's test runner and do not require a running BB installation. They are separate from the current `npm run check` command while CI integration is pending.
+For a focused settings-state check, run `node --test settings-state.test.mjs`. It covers search, selection retention, out-of-order refreshes and project-scoped mutations using only Node's test runner, without a running BB installation. These tests also run through `npm run check` and the Ubuntu/Node 24 pull request workflow. See [.github/README.md](.github/README.md) for CI scope, standalone build details and Windows native-install limitations.
