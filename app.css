@@ -46,3 +46,7 @@
   .bb-project-icons-settings .bb-project-icons-project { gap: 8px; padding: 8px; flex-wrap: wrap; }
   .bb-project-icons-action { margin-left: 36px; }
 }
+
+.bb-project-icons-presets { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; padding: 4px; min-width: 0; }
+.bb-project-icons-presets button { display: grid; place-items: center; gap: 4px; justify-self: stretch; padding: 8px 2px; min-height: 44px; font-size: 12px; overflow-wrap: anywhere; }
+.bb-project-icons-presets [aria-pressed=true] { outline: 2px solid var(--ring, var(--foreground)); outline-offset: 1px; }
