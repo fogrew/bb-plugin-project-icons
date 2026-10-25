@@ -57,9 +57,10 @@ base, inherited commits and validation limits in the PR and handoff. A stacked
 PR is a documented exception to the ordinary `develop` base, not permission to
 merge out of dependency order. Retarget it to `develop` only after its dependency
 has merged, then revalidate its diff and relevant checks against the new base.
-Resolve integration changes with additional signed commits; do not rebase,
-amend or force-push signed branch history. Integration/release readiness requires
-accepted dependencies, acceptance criteria and relevant checks.
+Synchronize existing stacks with an additive GPG-signed merge from `develop`
+into their own unprotected branch, retarget and rerun relevant checks. Do not
+rebase, amend or force-push signed branch history. Integration/release readiness
+requires accepted dependencies, acceptance criteria and relevant checks.
 
 ### Autonomous ordinary PR merges
 
@@ -75,16 +76,22 @@ ordinary PR into `develop` without per-PR owner approval only when:
 - The merge method satisfies the mandatory valid GPG-signature requirement for
   every resulting commit as well as the global workflow constraints below.
 
-The global autonomous workflow specifies `gh pr merge --squash` and forbids
-direct protected-branch writes or local merges into protected branches. The
-global signing instructions warn that GitHub merge operations may strip
-signatures. Local signed commits do not guarantee a signed GitHub squash commit.
-Establish before merging that the resulting commit will have a valid GPG
-signature, then verify the actual resulting commit afterward. If signing cannot
-be guaranteed with the prescribed method, stop and report the concrete
-incompatibility; do not attempt an unsigned merge or substitute a local merge
-and protected-branch push. Squashing is permitted only for this compliant PR
-merge, not as permission to rewrite the signed working branch.
+Use `gh pr merge <PR> --squash --match-head-commit <validated-head-SHA>` after
+all gates pass. This repository explicitly permits verified GitHub squash
+integration: source commits require the user's personal GPG signatures; GitHub
+signs the final squash commit with its own distinct GPG key, not the user's key.
+This narrows the global signing file's blanket warning; rebase is not permitted.
+See GitHub's [signed-commit merge rules](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches#require-signed-commits)
+and [signature verification documentation](https://docs.github.com/en/authentication/managing-commit-signature-verification/about-commit-signature-verification).
+
+Immediately retrieve the resulting commit's verification and signature; require
+valid GPG verification and record its immutable SHA and actual signer/fingerprint.
+Verify the signature against GitHub's published signing key, not merely a PR
+success message. If verification fails or cannot be established, stop further
+merges and report the concrete failure. Never fall back to unsigned commits,
+local merges into protected branches or direct protected-branch pushes.
+Do not change signing settings. Squash integration does not permit rewriting
+source branch history.
 
 Do not enable auto-merge. Releases, tags, publishing, marketplace submission and
 repository settings are handled by the owner. Release/hotfix integration and

@@ -15,7 +15,9 @@ Flow, Conventional Commits, changelog/version policy and the handoff template.
 - Real code dependencies may use clearly disclosed stacked branches/PRs. Name
   the dependency issue/PR and actual base, inherited commits and validation
   limits. Retarget to `develop` only after the dependency merges, then revalidate
-  the diff and checks without rewriting signed history.
+  the diff and checks without rewriting signed history. Synchronize existing
+  stacks via an additive GPG-signed merge from `develop` into their own
+  unprotected branch, then retarget and rerun checks.
 - Distinguish development readiness from integration/release readiness, which
   requires accepted dependencies, acceptance criteria and relevant checks.
   Ordinary autonomous merges follow the gates below. Report blockers to the
@@ -57,13 +59,14 @@ content or audiences; record their scope without extending them to other content
 - Require independent reviews by risk: untrusted input, three; other code, one;
   docs/config, zero. Fix findings or file follow-ups; resolve blocking findings
   before acceptance. File out-of-scope discoveries instead of scope drift.
-- The global method is `gh pr merge --squash`; resulting commits must still have
-  valid GPG signatures. The signing rules warn GitHub merges may strip them;
-  locally signed branch commits do not guarantee signed GitHub output.
-  Guarantee signing before the operation and verify the resulting commit after
-  it. If that cannot be guaranteed, stop/report the concrete incompatibility.
-  Never allow an unsigned fallback or substitute a protected-branch push.
-  Squashing is allowed only for a compliant PR merge, not branch-history edits.
+- Use `gh pr merge <PR> --squash --match-head-commit <validated-head-SHA>` only
+  after all gates pass. Verified GitHub squash integration is permitted;
+  source commits retain personal GPG signatures, while GitHub signs the squash
+  with its own distinct GPG key. Immediately verify the result's GPG signature
+  and verification status, recording immutable SHA and actual signer/fingerprint.
+  If verification fails or is unavailable, stop further merges and report it.
+  No unsigned fallback, signing-setting changes or source history rewrites.
+  See CONTRIBUTING for authoritative sources and verification details.
 - Never write directly to or merge locally into protected branches. The owner
   handles releases, tags, publishing, marketplace submission and repo settings.
   Release/hotfix integration and return PRs are outside ordinary autonomous

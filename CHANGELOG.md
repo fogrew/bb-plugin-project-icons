@@ -23,5 +23,6 @@ with the explicit pre-1.0 policy in [CONTRIBUTING.md](CONTRIBUTING.md).
   working history.
 - Aligned ordinary autonomous PR merge gates with the global workflow, including
   risk-based independent review and mandatory GPG signatures on merge output;
-  signing incompatibilities block merging. Releases and repo settings remain
-  owner responsibilities.
+  verified GitHub squash integration distinguishes personal source signatures
+  from GitHub's signer and stops further merges on verification failure.
+  Releases and repo settings remain owner responsibilities.
