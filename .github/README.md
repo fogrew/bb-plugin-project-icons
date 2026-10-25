@@ -1,7 +1,8 @@
 # Pull request quality gates
 
-Related #2. Workflow conventions in pending #1 / PR #20 are an integration
-dependency. This file documents CI without taking ownership of those documents.
+CI implements the checks described in [CONTRIBUTING.md](../CONTRIBUTING.md).
+That document defines the contribution and integration policy; this file
+documents the automated checks and their limits.
 
 ## Trigger and check name
 
@@ -10,16 +11,16 @@ including draft PRs. There are no path filters. It uses Node 24 on
 `ubuntu-latest`, a read-only token, pinned action revisions, no saved checkout
 credentials and a 15-minute timeout. It neither publishes nor merges.
 
-The proposed required status check is **PR quality gates** (workflow **CI**).
-Confirm its exact displayed name and a successful run before configuring branch
-protection separately. This PR does not change branch protection.
+The verified check name is **PR quality gates** (workflow **CI**). It is the
+candidate required check for any separately authorized branch-protection change.
+This workflow does not configure branch protection.
 
 The job checks branch/commit conventions and manifest consistency, runs
 `npm ci`, then `npm run check` (policy, typecheck, build, backend and validator
 tests). Finally it checks that installation did not change either package file.
 Tests are discovered with root `*.test.mjs` and `scripts/*.test.mjs` globs so
-additional root suites, including the settings-state tests from pending PR #21,
-enter CI automatically after integration without another package-script edit.
+additional root suites enter CI automatically after integration without another
+package-script edit.
 The default checkout builds GitHub's proposed merge result; commit conventions
 use the event's actual base/head SHAs, excluding the synthetic test merge.
 
@@ -44,11 +45,17 @@ must also have either a conventional subject or a standard Git/GitHub subject su
 `Merge pull request #20 from fogrew/chore/1-workflow-conventions`.
 A one-parent commit cannot use the merge exemption.
 
-For both ordinary and merge commits, CI checks signature-envelope presence only: it has no trusted public-key
-keyring and does not certify signer identity or cryptographic validity.
+For both ordinary and merge commits, CI checks signature-envelope presence only:
+it has no trusted public-key keyring and does not certify signer identity or
+cryptographic validity.
 Every real commit and merge still requires local GPG signing and successful
 `git verify-commit <sha>` before pushing. Preserve signed history; use additive
-commits, no amend/rebase/squash/force-push. Merge approval remains a separate gate.
+commits, no amend/rebase/force-push. The contribution policy separately permits
+GitHub squash integration after its acceptance, dependency, independent-review
+and check gates pass. That final commit has GitHub's distinct GPG signature;
+verify it against the published GitHub signing key and record the actual signer.
+CI's envelope check does not establish those integration gates or authorize a
+merge, publishing or repository-setting changes.
 
 ## Reproducible standalone build
 
