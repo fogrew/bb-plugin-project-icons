@@ -22,10 +22,11 @@ Flow, Conventional Commits, changelog/version policy and the handoff template.
   blockers to the parent coordinator; split scope growth into follow-up issues.
 - Respect available user instructions, including RTK, communication preferences,
   Git signing and code-comment rules. Do not invent missing include files.
-- Planning files `tasks/plan.md` and `tasks/todo.md` are owned by the roadmap
-  work in [PR #19](https://github.com/fogrew/bb-plugin-project-icons/pull/19)
-  until accepted; read that branch for context, but do not copy or edit them
-  without coordination.
+- GitHub Issues carry requirements, acceptance criteria and dependencies;
+  the GitHub Project and milestones carry priority, order and status.
+  Do not maintain duplicate task indexes in the repository. Architecture and
+  decision documents are appropriate when they explain design rather than
+  replicate task statuses.
 
 ## Public content language
 
