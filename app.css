@@ -1,9 +1,32 @@
 .bb-project-icons-row .project-colors-control { display: none !important; }
 .bb-project-icons-image { display: inline-block; width: 20px; height: 20px; flex: 0 0 20px; object-fit: contain; border-radius: 4px; pointer-events: none; margin-right: 2px; }
-.bb-project-icons-settings { display: grid; gap: 12px; max-width: 420px; font-size: 14px; }
-.bb-project-icons-settings select, .bb-project-icons-settings input, .bb-project-icons-settings button { color: inherit; background: var(--background); border: 1px solid var(--border); border-radius: 6px; padding: 7px 9px; }
+.bb-project-icons-settings { display: grid; gap: 12px; width: 100%; max-width: 480px; min-width: 0; font-size: 14px; }
+.bb-project-icons-settings *, .bb-project-icons-settings *::before, .bb-project-icons-settings *::after { box-sizing: border-box; }
+.bb-project-icons-settings input, .bb-project-icons-settings button { color: inherit; font: inherit; background: var(--background); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; min-width: 0; }
+.bb-project-icons-settings input { width: 100%; }
 .bb-project-icons-settings button { justify-self: start; cursor: pointer; }
 .bb-project-icons-settings button:disabled { opacity: .5; cursor: default; }
-.bb-project-icons-preview { display: flex; align-items: center; gap: 10px; min-height: 36px; }
-.bb-project-icons-preview img { width: 20px; height: 20px; object-fit: contain; }
+.bb-project-icons-settings :is(button, input):focus-visible { outline: 2px solid var(--ring, var(--foreground)); outline-offset: 2px; }
+.bb-project-icons-settings p { margin: 0; }
+.bb-project-icons-help, .bb-project-icons-identity small, .bb-project-icons-id { color: var(--muted-foreground); font-size: 12px; overflow-wrap: anywhere; }
 .bb-project-icons-settings [role=alert] { color: var(--destructive); }
+.bb-project-icons-picker { display: grid; gap: 8px; min-width: 0; }
+.bb-project-icons-list { list-style: none; margin: 0; padding: 4px; border: 1px solid var(--border); border-radius: 6px; max-height: 288px; overflow-y: auto; scroll-padding: 8px; }
+.bb-project-icons-list:empty { display: none; }
+.bb-project-icons-settings .bb-project-icons-project { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 48px; border-color: transparent; text-align: left; }
+.bb-project-icons-settings .bb-project-icons-project:hover { background: var(--accent); color: var(--accent-foreground); }
+.bb-project-icons-settings .bb-project-icons-project[aria-pressed=true] { border-color: var(--border); background: var(--muted); }
+.bb-project-icons-thumbnail { display: grid; place-items: center; width: 28px; height: 28px; flex: 0 0 28px; color: var(--muted-foreground); }
+.bb-project-icons-thumbnail img { width: 24px; height: 24px; object-fit: contain; border-radius: 4px; }
+.bb-project-icons-identity { display: grid; gap: 2px; min-width: 0; flex: 1; }
+.bb-project-icons-name { overflow-wrap: anywhere; }
+.bb-project-icons-action { font-size: 12px; flex: 0 0 auto; }
+.bb-project-icons-editor { display: grid; gap: 8px; margin: 0; padding: 12px; min-width: 0; border: 1px solid var(--border); border-radius: 6px; }
+.bb-project-icons-editor legend { padding: 0 4px; max-width: 100%; overflow-wrap: anywhere; }
+.bb-project-icons-preview { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-height: 28px; }
+.bb-project-icons-preview img { width: 28px; height: 28px; object-fit: contain; }
+.bb-project-icons-empty, .bb-project-icons-error { display: grid; gap: 8px; }
+@media (max-width: 360px) {
+  .bb-project-icons-settings .bb-project-icons-project { gap: 8px; padding: 8px; flex-wrap: wrap; }
+  .bb-project-icons-action { margin-left: 36px; }
+}

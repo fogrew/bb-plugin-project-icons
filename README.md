@@ -12,7 +12,9 @@ BB loads third-party plugins with full trust. Review the source before installin
 
 ## Use
 
-Open **Settings → Installed plugins → Project Icons**. Choose a project, upload a PNG, JPEG, or WebP image, and check the preview. Choose **Remove icon** to restore that project's ordinary heading. Projects without an assigned image keep their usual appearance.
+Open **Settings → Installed plugins → Project Icons**. Search by project name or project ID, then choose a row to edit its icon. Rows show the current icon; duplicate names also show their project IDs. Use Tab or the arrow keys to move through rows, and Enter or Space to select. Filtering and realtime updates retain the selected project while it still exists.
+
+Upload a PNG, JPEG, or WebP image and check the preview. Choose **Remove icon** to restore that project's ordinary heading. Projects without an assigned image keep their usual appearance. Loading, empty results and failures have explicit messages; failed project refreshes can be retried.
 
 Source images must be under 2 MB. The browser fits the image into a transparent 64 × 64 PNG, preserving its proportions; the processed PNG must be at most 64 KiB. The server independently checks the encoding, PNG signature, dimensions, size, and project ID. SVG is unsupported.
 
@@ -26,7 +28,7 @@ BB has no native project image field. This plugin enhances the native thread-lis
 
 ## Develop
 
-Requires BB 0.46 or newer, Node.js and npm for local development. From the repository directory:
+Requires BB 0.46 or newer, npm, and Node.js 22.19 or newer in the 22.x line, 24.x, or 26.x for local development. From the repository directory:
 
 ```sh
 npm ci
@@ -34,4 +36,6 @@ npm run check
 bb plugin install .
 ```
 
-`npm run check` typechecks, builds the plugin, and runs the backend tests. The tests use the built `dist/server.js`; run `npm run build` before running `npm test` alone. BB manages the installed plugin's icon data outside this repository.
+`npm run check` validates branch and manifest conventions, typechecks, builds the plugin with the pinned standalone toolchain, and runs all root `*.test.mjs` and `scripts/*.test.mjs` suites. This includes backend, settings-state and build/quality-validator tests. Tests use the built `dist/server.js`; run `npm run build` before running `npm test` alone. BB manages the installed plugin's icon data outside this repository.
+
+For a focused settings-state check, run `node --test settings-state.test.mjs`. It covers search, selection retention, out-of-order refreshes and project-scoped mutations using only Node's test runner, without a running BB installation. These tests also run through `npm run check` and the Ubuntu/Node 24 pull request workflow. See [.github/README.md](.github/README.md) for CI scope, standalone build details and Windows native-install limitations.

@@ -19,6 +19,9 @@ with the explicit pre-1.0 policy in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ### Changed
 
+- Replaced the project icon settings dropdown with a searchable, keyboard-accessible
+  project list, explicit loading/error/empty states, and stable selection during
+  realtime updates ([#3](https://github.com/fogrew/bb-plugin-project-icons/issues/3)).
 - Clarified English-language publishing across projects, with scoped explicit
   user exceptions and support for Unicode, emoji and necessary test fixtures.
 - Separated parallel development readiness from integration/release readiness;
@@ -29,3 +32,9 @@ with the explicit pre-1.0 policy in [CONTRIBUTING.md](CONTRIBUTING.md).
   verified GitHub squash integration distinguishes personal source signatures
   from GitHub's signer and stops further merges on verification failure.
   Releases and repo settings remain owner responsibilities.
+
+### Fixed
+
+- Kept asynchronous icon changes and feedback attached to their initiating
+  project when selection changes
+  ([#3](https://github.com/fogrew/bb-plugin-project-icons/issues/3)).
