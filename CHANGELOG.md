@@ -10,6 +10,9 @@ with the explicit pre-1.0 policy in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ### Added
 
+- Pull request checks for branch and commit conventions, lockfile consistency,
+  typechecking, plugin builds, and backend tests
+  ([#2](https://github.com/fogrew/bb-plugin-project-icons/issues/2)).
 - Contributor and agent workflow documentation covering Git Flow, signed
   commits, review gates, version policy and session handoffs
   ([#1](https://github.com/fogrew/bb-plugin-project-icons/issues/1)).
