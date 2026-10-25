@@ -11,7 +11,7 @@ with the explicit pre-1.0 policy in [CONTRIBUTING.md](CONTRIBUTING.md).
 ### Added
 
 - Contributor and agent workflow documentation covering Git Flow, signed
-  commits, review approval, version policy and session handoffs
+  commits, review gates, version policy and session handoffs
   ([#1](https://github.com/fogrew/bb-plugin-project-icons/issues/1)).
 
 ### Changed
@@ -20,4 +20,8 @@ with the explicit pre-1.0 policy in [CONTRIBUTING.md](CONTRIBUTING.md).
   user exceptions and support for Unicode, emoji and necessary test fixtures.
 - Separated parallel development readiness from integration/release readiness;
   documented stacked dependency PRs and revalidation while preserving signed
-  history and explicit approval for every merge.
+  working history.
+- Aligned ordinary autonomous PR merge gates with the global workflow, including
+  risk-based independent review and mandatory GPG signatures on merge output;
+  signing incompatibilities block merging. Releases and repo settings remain
+  owner responsibilities.

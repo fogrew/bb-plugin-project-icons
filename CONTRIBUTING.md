@@ -57,19 +57,38 @@ base, inherited commits and validation limits in the PR and handoff. A stacked
 PR is a documented exception to the ordinary `develop` base, not permission to
 merge out of dependency order. Retarget it to `develop` only after its dependency
 has merged, then revalidate its diff and relevant checks against the new base.
-Resolve integration changes with additional signed commits (including a signed
-merge from `develop` only when separately authorized); never rebase or otherwise
-rewrite signed history. Integration/release readiness requires accepted
-dependencies, acceptance criteria and relevant checks. Every merge still needs
-fresh explicit approval for that specific PR.
+Resolve integration changes with additional signed commits; do not rebase,
+amend or force-push signed branch history. Integration/release readiness requires
+accepted dependencies, acceptance criteria and relevant checks.
 
-Each merge, including synchronization PRs, requires a fresh explicit user
-command naming that particular PR. Preserve signed commits, use signed merge
-commits and verify their signatures. Do not squash, rebase, amend or otherwise
-rewrite signed commits; add a signed follow-up commit instead. Never enable
-auto-merge or force-push. Opening a PR is not merge authorization. Release work
-does not authorize tags, publishing, marketplace submission, or changes to
-branch protection/default branch; obtain explicit authorization for those actions.
+### Autonomous ordinary PR merges
+
+Under the user's ongoing backlog authorization, an agent may merge its own
+ordinary PR into `develop` without per-PR owner approval only when:
+
+- Acceptance criteria and dependencies are satisfied, the branch is up to date
+  with its actual base, and every required check is green.
+- Risk-appropriate independent review is complete: three independent reviews
+  for untrusted-input changes, one for other code, none required for docs/config.
+  Fix findings or file follow-up issues; blocking findings must be resolved
+  before acceptance. File out-of-scope discoveries rather than expanding the PR.
+- The merge method satisfies the mandatory valid GPG-signature requirement for
+  every resulting commit as well as the global workflow constraints below.
+
+The global autonomous workflow specifies `gh pr merge --squash` and forbids
+direct protected-branch writes or local merges into protected branches. The
+global signing instructions warn that GitHub merge operations may strip
+signatures. Local signed commits do not guarantee a signed GitHub squash commit.
+Establish before merging that the resulting commit will have a valid GPG
+signature, then verify the actual resulting commit afterward. If signing cannot
+be guaranteed with the prescribed method, stop and report the concrete
+incompatibility; do not attempt an unsigned merge or substitute a local merge
+and protected-branch push. Squashing is permitted only for this compliant PR
+merge, not as permission to rewrite the signed working branch.
+
+Do not enable auto-merge. Releases, tags, publishing, marketplace submission and
+repository settings are handled by the owner. Release/hotfix integration and
+return PRs are outside ordinary autonomous merge authorization.
 
 ## Commits and signatures
 
@@ -124,9 +143,9 @@ explicit project policy during initial development:
 Roadmap versions are provisional. Reassess them when compatibility changes.
 Change versions in the release task, keeping `package.json`,
 `package-lock.json`, the changelog version/date and eventual immutable
-`vX.Y.Z` tag consistent. Create and verify a GPG-signed release tag only after
-explicit release authorization. Date entries accurately when preparing the
-release; never infer a release date from the package version alone.
+`vX.Y.Z` tag consistent. The owner creates and verifies GPG-signed release tags.
+Date entries accurately when preparing the release; never infer a release date
+from the package version alone.
 The current `0.1.0` package version has no tagged release at this workflow's
 introduction, so no historical release date is asserted.
 
@@ -139,18 +158,21 @@ This documentation does not configure CI, required checks, hooks or protection.
 For documentation-only changes, check Markdown structure, links, the diff,
 branch/tag facts where relevant and commit signatures. An application build is
 not required. For application changes, follow the development commands in
-[README.md](README.md); `npm run check` currently typechecks, builds and runs
-backend tests. Before build/browser runs, check available machine resources
+[README.md](README.md); run `npm run check` before opening an application PR.
+It typechecks, builds and runs backend tests. Run `npm run build` before a
+direct Playwright run; tests alone also require built output. These are this
+repository's npm commands, not the generic global pnpm examples.
+Before build/browser runs, check available machine resources
 and applicable BB instructions. Report local checks, runtime/live evidence and
 untested platforms separately; a build is not live validation.
 
 Target the base in the branch table or disclose the actual stacked dependency
 base as described above. Use a Conventional Commit style PR title.
 Describe the problem, final behavior, changed files, changelog impact, relevant
-checks and limitations. Reference `Related #<issue>` while acceptance is pending;
-do not use automatic closing keywords before acceptance.
+checks and limitations. Use `Closes #N` once acceptance can be met by the PR;
+use `Related #N` while it cannot. A closing reference is not evidence of acceptance.
 Keep the issue In Progress through review. Do not close it or mark Done until
-acceptance criteria pass and the specifically authorized merge is complete.
+acceptance criteria pass and a policy-compliant merge is complete.
 
 ## Session handoff
 

@@ -18,8 +18,8 @@ Flow, Conventional Commits, changelog/version policy and the handoff template.
   the diff and checks without rewriting signed history.
 - Distinguish development readiness from integration/release readiness, which
   requires accepted dependencies, acceptance criteria and relevant checks.
-  Every merge still requires fresh explicit approval for that PR. Report
-  blockers to the parent coordinator; split scope growth into follow-up issues.
+  Ordinary autonomous merges follow the gates below. Report blockers to the
+  parent coordinator; split scope growth into follow-up issues.
 - Respect available user instructions, including RTK, communication preferences,
   Git signing and code-comment rules. Do not invent missing include files.
 - GitHub Issues carry requirements, acceptance criteria and dependencies;
@@ -49,20 +49,34 @@ content or audiences; record their scope without extending them to other content
   to repeat; never retry automatically.
 - After every commit, run `git verify-commit <sha>`. Stop before pushing if
   verification fails; provide the full SHA and signature evidence on handoff.
-- Preserve signed history: no squash, rebase, amend, force-push or auto-merge.
-  Add signed follow-up commits for corrections.
-- Every merge requires a fresh explicit user command for that specific PR,
-  including release/hotfix synchronization; merge commits must also be signed
-  and verified. A request to implement or open a PR does not authorize merging.
-- Do not tag, publish, submit to marketplace or change protection/default branch
-  without explicit authorization for the action.
+- Add signed follow-up commits for corrections; do not rebase, amend or
+  force-push signed branch history. Do not enable auto-merge.
+- Under ongoing backlog authorization, an agent may merge its own ordinary PR
+  into `develop` when acceptance/dependencies are satisfied, its branch is up
+  to date and all required checks are green. No per-PR owner approval is needed.
+- Require independent reviews by risk: untrusted input, three; other code, one;
+  docs/config, zero. Fix findings or file follow-ups; resolve blocking findings
+  before acceptance. File out-of-scope discoveries instead of scope drift.
+- The global method is `gh pr merge --squash`; resulting commits must still have
+  valid GPG signatures. The signing rules warn GitHub merges may strip them;
+  locally signed branch commits do not guarantee signed GitHub output.
+  Guarantee signing before the operation and verify the resulting commit after
+  it. If that cannot be guaranteed, stop/report the concrete incompatibility.
+  Never allow an unsigned fallback or substitute a protected-branch push.
+  Squashing is allowed only for a compliant PR merge, not branch-history edits.
+- Never write directly to or merge locally into protected branches. The owner
+  handles releases, tags, publishing, marketplace submission and repo settings.
+  Release/hotfix integration and return PRs are outside ordinary autonomous
+  merge authorization. See CONTRIBUTING for the full merge gates.
 
 ## Checks and completion
 
 Use relevant documentation checks for docs-only work; application builds are
 not required. For code changes, follow [README.md](README.md) and check machine
 resources before build/browser runs. Distinguish local build/unit checks,
-runtime/live evidence and untested environments.
+runtime/live evidence and untested environments. For application PRs run
+`npm run check`; run `npm run build` before direct Playwright runs. Use these
+actual npm scripts rather than the generic global pnpm examples.
 
 Add notable changes to [CHANGELOG.md](CHANGELOG.md) under Unreleased in the same
 PR. Version bumps belong to release tasks; follow the explicit 0.x policy in
@@ -71,7 +85,7 @@ CONTRIBUTING. Do not invent release dates or claim planned contracts are stable.
 These rules do not install automated enforcement; CI is separate work in
 [issue #2](https://github.com/fogrew/bb-plugin-project-icons/issues/2).
 Keep issue status current, link issue/PR in Focus Board and pin key artifacts
-using the available BB skills. Use Related issue references while acceptance
-is pending. Do not close the issue or mark Done before acceptance and an
-explicitly approved merge. Return the CONTRIBUTING handoff template to the
+using the available BB skills. Use `Closes #N` once acceptance can be met by the
+PR, otherwise `Related #N`. Do not close the issue or mark Done before acceptance
+and a policy-compliant merge. Return the CONTRIBUTING handoff template to the
 parent coordinator.
