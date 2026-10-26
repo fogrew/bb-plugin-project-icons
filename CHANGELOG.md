@@ -10,6 +10,10 @@ with the explicit pre-1.0 policy in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ### Added
 
+- Choose project icon images through one accessible picker, drag-and-drop or
+  focused paste area, with shared validation, project-owned drafts and clear
+  failure/busy feedback
+  ([#5](https://github.com/fogrew/bb-plugin-project-icons/issues/5)).
 - Preview and crop project images with Fit/Fill, zoom and position controls,
   an actual 20 px sidebar sample, and explicit Save/Cancel that preserves
   existing icons when drafts are discarded

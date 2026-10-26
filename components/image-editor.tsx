@@ -1,4 +1,6 @@
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ImageInput } from "./image-input";
+import { singleImageFile } from "../lib/image-input";
 import type { createSettingsState, Project } from "../settings-state";
 import { createDraft } from "../lib/image-draft";
 import { clampCrop, decodeImage, defaultCrop, drawIcon, encodeIcon, offsetBounds, type Crop } from "../lib/image-processing";
@@ -6,7 +8,6 @@ import { clampCrop, decodeImage, defaultCrop, drawIcon, encodeIcon, offsetBounds
 type Props = { project: Project; state: ReturnType<typeof createSettingsState>; busy: boolean };
 
 export function ImageEditor({ project, state, busy }: Props) {
-  const id = useId();
   const draft = useMemo(() => createDraft<ImageBitmap>(project.id, () => state.getSnapshot().selected), [project.id, state]);
   const [crop, setCrop] = useState<Crop>(defaultCrop);
   const [preview, setPreview] = useState("");
@@ -46,7 +47,15 @@ export function ImageEditor({ project, state, busy }: Props) {
     }
     catch { setError("Could not preview this image. Choose another image."); setPreview(""); }
   };
-  const upload = async (file: File) => {
+  const upload = async (files: File[]) => {
+    if (state.getSnapshot().selected !== project.id) return;
+    if (busy || state.getSnapshot().operation) {
+      setError("Wait for the current icon operation, then try again.");
+      return;
+    }
+    let file: File;
+    try { file = singleImageFile(files); }
+    catch { setError("Choose one image at a time. The current draft is unchanged."); return; }
     const version = ++request.current;
     setLoading(true); setPreview(""); setError(""); setCrop(defaultCrop);
     try {
@@ -73,14 +82,7 @@ export function ImageEditor({ project, state, busy }: Props) {
   const image = draft.current();
   const bounds = image ? offsetBounds(image.width, image.height, crop) : { x: 0, y: 0 };
   return <div className="bb-project-icons-crop">
-    <label htmlFor={id}>Choose image</label>
-    <p id={`${id}-help`} className="bb-project-icons-help">PNG, JPEG, or WebP; up to 2 MB. Adjust the draft, then Save. Output: transparent 64 × 64 PNG.</p>
-    <input ref={input} id={id} type="file" accept="image/png,image/jpeg,image/webp"
-      aria-describedby={`${id}-help`} disabled={busy} onChange={(event) => {
-        const file = event.target.files?.[0];
-        event.target.value = "";
-        if (file) void upload(file);
-      }} />
+    <ImageInput busy={busy} inputRef={input} onFiles={(files) => void upload(files)}>
     {loading && <p role="status">Reading image…</p>}
     {error && <p role="alert">{error}</p>}
     {preview && <>
@@ -108,5 +110,6 @@ export function ImageEditor({ project, state, busy }: Props) {
       <button type="button" disabled={busy || loading || !preview} onClick={() => void save()}>Save</button>
       <button type="button" disabled={busy} onClick={() => { cancel(); input.current?.focus(); }}>Cancel</button>
     </div>}
+    </ImageInput>
   </div>;
 }
