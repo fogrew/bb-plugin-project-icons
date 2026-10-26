@@ -8,12 +8,14 @@
   },
   "homepage": "https://github.com/fogrew/bb-plugin-project-icons",
   "scripts": {
-    "build": "bb plugin build",
+    "build": "node scripts/build.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "node --test server.test.mjs",
-    "check": "npm run typecheck && npm run build && npm test"
+    "test": "node --test *.test.mjs scripts/*.test.mjs",
+    "check": "npm run check:quality && npm run typecheck && npm run build && npm test",
+    "check:quality": "node scripts/check-quality.mjs"
   },
   "engines": {
+    "node": "^22.19.0 || ^24.0.0 || ^26.0.0",
     "bb": ">=0.46",
     "bbPluginSdk": ">=0.6.49"
   },
@@ -31,12 +33,18 @@
   },
   "devDependencies": {
     "@get-bb/plugin-sdk": "0.6.49",
+    "@tailwindcss/node": "4.3.0",
+    "@tailwindcss/oxide": "4.3.0",
     "@types/better-sqlite3": "^7.6.12",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "bb-app": "0.46.1",
     "better-sqlite3": "^12.0.0",
+    "cron-parser": "5.10.2",
+    "esbuild": "0.28.1",
     "hono": "^4.11.9",
+    "tailwindcss": "4.3.0",
     "typescript": "^5.7.0"
   }
 }
