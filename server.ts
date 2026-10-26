@@ -1,10 +1,10 @@
 import { defineRpcContract, type BbPluginApi } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
+import { decodePng } from "./lib/png-validation";
 
 const idSchema = z.string().regex(/^proj_[a-z0-9]{10,32}$/);
 const imageSchema = z.string().regex(/^[A-Za-z0-9+/]+={0,2}$/).max(90000);
-const MAX_PNG_BYTES = 65536;
 const UNDO_MS = 15000;
 const MAX_UNDO_OFFERS = 16;
 const undoSchema = z.object({ token: z.string().uuid(), expiresAt: z.number() });
@@ -17,13 +17,6 @@ export const rpcContract = defineRpcContract({
 });
 
 type Index = Record<string, number>;
-function decodePng(base64: string): Buffer {
-  const bytes = Buffer.from(base64, "base64");
-  if (bytes.length < 45 || bytes.length > MAX_PNG_BYTES || bytes.toString("base64") !== base64) throw new Error("Invalid image size or encoding");
-  if (!bytes.subarray(0, 8).equals(Buffer.from([137,80,78,71,13,10,26,10]))) throw new Error("Only PNG images are accepted");
-  if (bytes.readUInt32BE(8) !== 13 || bytes.toString("ascii", 12, 16) !== "IHDR" || bytes.readUInt32BE(16) !== 64 || bytes.readUInt32BE(20) !== 64) throw new Error("Expected a 64 × 64 PNG");
-  return bytes;
-}
 
 export default function plugin(bb: BbPluginApi) {
   type Offer = { token: string; expiresAt: number; deadline: number; base64: string };

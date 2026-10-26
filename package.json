@@ -29,6 +29,7 @@
     "app": "./app.tsx"
   },
   "dependencies": {
+    "pngjs": "7.0.0",
     "zod": "^4.6.5"
   },
   "devDependencies": {
@@ -37,6 +38,7 @@
     "@tailwindcss/oxide": "4.3.0",
     "@types/better-sqlite3": "^7.6.12",
     "@types/node": "^22.0.0",
+    "@types/pngjs": "6.0.5",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "bb-app": "0.46.1",

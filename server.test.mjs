@@ -3,14 +3,36 @@ import assert from "node:assert/strict";
 import { createFakePluginHost } from "@get-bb/plugin-sdk/testing";
 import plugin from "./dist/server.js";
 
+test("header-only PNG rejection preserves storage, revisions, realtime and Undo", async (t) => {
+  const { bb, harness } = createFakePluginHost({
+    pluginId: "project-icons", sdk: { projects: { list: async () => [{ id: projectId, name: "Demo" }] } },
+  });
+  plugin(bb);
+  t.after(() => harness.lifecycle.dispose());
+  const call = (method, input) => harness.behavior.callRpc(method, input);
+  await call("save", { projectId, base64: png.toString("base64") });
+  const { undo } = await call("removeWithUndo", { projectId });
+  const snapshot = async () => Promise.all((await bb.storage.kv.list()).map(async key => [key, await bb.storage.kv.get(key)]));
+  const before = await snapshot();
+  const signals = harness.realtimeSignals.length;
+  const writes = [];
+  for (const method of ["set", "delete"]) {
+    const original = bb.storage.kv[method].bind(bb.storage.kv);
+    bb.storage.kv[method] = async (...args) => { writes.push(args); return original(...args); };
+  }
+  const header = Buffer.alloc(45);
+  png.subarray(0, 24).copy(header);
+  await assert.rejects(call("save", { projectId, base64: header.toString("base64") }));
+  assert.deepEqual(writes, []);
+  assert.deepEqual(await snapshot(), before);
+  assert.equal(harness.realtimeSignals.length, signals);
+  assert.equal((await call("restore", { projectId, token: undo.token })).status, "restored");
+});
+
+
 const projectId = "proj_aaaaaaaaaa";
 const secondId = "proj_bbbbbbbbbb";
-const png = Buffer.alloc(45);
-Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]).copy(png);
-png.writeUInt32BE(13, 8);
-png.write("IHDR", 12);
-png.writeUInt32BE(64, 16);
-png.writeUInt32BE(64, 20);
+import { transparentPng as png } from "./test-fixtures/png.mjs";
 
 test("validates uploads, lists projects, serves and removes icons", async () => {
   const projects = [{ id: projectId, name: "Demo" }, { id: secondId, name: "Other" }];

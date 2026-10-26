@@ -47,6 +47,9 @@ with the explicit pre-1.0 policy in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ### Fixed
 
+- Reject malformed or truncated PNG assignments before saving while preserving
+  existing icons, revision state and removal Undo offers
+  ([#28](https://github.com/fogrew/bb-plugin-project-icons/issues/28)).
 - Preserve legacy icon revision maxima before removal or project cleanup so
   reloads and clock rollback cannot reuse a previously cached icon URL
   ([#24](https://github.com/fogrew/bb-plugin-project-icons/issues/24)).
