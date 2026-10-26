@@ -14,7 +14,6 @@ with the explicit pre-1.0 policy in [CONTRIBUTING.md](CONTRIBUTING.md).
   an actual 20 px sidebar sample, and explicit Save/Cancel that preserves
   existing icons when drafts are discarded
   ([#4](https://github.com/fogrew/bb-plugin-project-icons/issues/4)).
-
 - Pull request checks for branch and commit conventions, lockfile consistency,
   typechecking, plugin builds, and backend tests
   ([#2](https://github.com/fogrew/bb-plugin-project-icons/issues/2)).
