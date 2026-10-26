@@ -14,9 +14,11 @@ BB loads third-party plugins with full trust. Review the source before installin
 
 Open **Settings → Installed plugins → Project Icons**. Search by project name or project ID, then choose a row to edit its icon. Rows show the current icon; duplicate names also show their project IDs. Use Tab or the arrow keys to move through rows, and Enter or Space to select. Filtering and realtime updates retain the selected project while it still exists.
 
-Upload a PNG, JPEG, or WebP image and check the preview. Choose **Remove icon** to restore that project's ordinary heading. Projects without an assigned image keep their usual appearance. Loading, empty results and failures have explicit messages; failed project refreshes can be retried.
+Choose a PNG, JPEG, or WebP image to open a draft. **Fit** keeps the whole image visible; **Fill** covers the square and crops the edges. Adjust zoom and X/Y offsets with the sliders (Tab to focus, arrow keys to adjust). Check the enlarged preview and actual 20 px sample beside the project name, then choose **Save**. **Cancel** preserves the existing icon. Switching projects cancels the draft and pending image results. An in-progress browser decode may still finish; its result is discarded and closed. Failed saves preserve the previous icon and allow retrying. Choose **Remove icon** to restore that project's ordinary heading. Projects without an assigned image keep their usual appearance. Loading, empty results and failures have explicit messages; failed project refreshes can be retried.
 
-Source images must be under 2 MB. The browser fits the image into a transparent 64 × 64 PNG, preserving its proportions; the processed PNG must be at most 64 KiB. The server independently checks the encoding, PNG signature, dimensions, size, and project ID. SVG is unsupported.
+Offset ranges follow the scaled image dimensions and zoom, so both source edges remain reachable. Changing Fit/Fill or zoom clamps offsets to the new range; choosing another image resets the draft to centered Fit.
+
+Source images must be under 2 MB. This compressed-file limit is not a decoded-pixel or memory limit. The browser renders the crop into a transparent 64 × 64 PNG, preserving its proportions; the processed PNG must be at most 64 KiB. The server independently checks the encoding, PNG signature, dimensions, size, and project ID. SVG is unsupported.
 
 BB stores icons in the plugin's server-side storage and serves them through same-origin plugin routes. Desktop and remote browsers connected to the same BB server share the assignments. Changes update open clients through BB realtime events and also refresh when a tab regains focus.
 
@@ -36,6 +38,8 @@ npm run check
 bb plugin install .
 ```
 
-`npm run check` validates branch and manifest conventions, typechecks, builds the plugin with the pinned standalone toolchain, and runs all root `*.test.mjs` and `scripts/*.test.mjs` suites. This includes backend, settings-state and build/quality-validator tests. Tests use the built `dist/server.js`; run `npm run build` before running `npm test` alone. BB manages the installed plugin's icon data outside this repository.
+`npm run check` validates branch and manifest conventions, typechecks, builds the plugin with the pinned standalone toolchain, and runs all root `*.test.mjs` and `scripts/*.test.mjs` suites. This includes backend, image-processing, settings-state and build/quality-validator tests. Tests use the built `dist/server.js`; run `npm run build` before running `npm test` alone. BB manages the installed plugin's icon data outside this repository.
 
 For a focused settings-state check, run `node --test settings-state.test.mjs`. It covers search, selection retention, out-of-order refreshes and project-scoped mutations using only Node's test runner, without a running BB installation. These tests also run through `npm run check` and the Ubuntu/Node 24 pull request workflow. See [.github/README.md](.github/README.md) for CI scope, standalone build details and Windows native-install limitations.
+
+For focused crop regressions, run `node --test image-processing.test.mjs settings-state.test.mjs`. These suites are included in `npm run check` and CI. They cover image geometry, transparent-canvas policy, draft ownership, cancellation and resource disposal; they do not replace live host integration checks.

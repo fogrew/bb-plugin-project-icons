@@ -54,8 +54,8 @@ export function createSettingsState(api: Api, changed: () => void) {
       });
     }
   };
-  const mutate = async (kind: "save" | "remove", prepare?: () => Promise<string>) => {
-    if (!snapshot.selected || snapshot.operation) return;
+  const mutate = async (kind: "save" | "remove", prepare?: () => Promise<string>, ownerId?: string) => {
+    if (!snapshot.selected || snapshot.operation || (ownerId !== undefined && ownerId !== snapshot.selected)) return;
     const projectId = snapshot.selected;
     const version = selectionVersion;
     update({ operation: { projectId, kind }, notice: null });

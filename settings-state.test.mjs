@@ -1,9 +1,64 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createSettingsState, filterProjects } from "./settings-state.ts";
+import { createDraft } from "./lib/image-draft.ts";
 
 const a = { id: "proj_aaaaaaaaaa", name: "Same", revision: null };
 const b = { id: "proj_bbbbbbbbbb", name: "Same", revision: 1 };
+
+test("save rejects a draft owned by another project before preparation", async () => {
+  const { state, calls } = setup();
+  await state.refresh();
+  state.select(b.id);
+  let prepared = false;
+  await state.mutate("save", async () => { prepared = true; return "png"; }, a.id);
+  assert.equal(prepared, false);
+  assert.deepEqual(calls, []);
+  assert.equal(state.getSnapshot().operation, null);
+});
+
+test("away-and-back invalidates an encoding draft before it reaches the server", async () => {
+  const { state, calls } = setup();
+  await state.refresh();
+  const draft = createDraft(a.id, () => state.getSnapshot().selected);
+  const unsubscribe = state.subscribe(() => {
+    if (state.getSnapshot().selected !== a.id) draft.cancel();
+  });
+  let closed = 0;
+  await draft.load(async () => ({ close: () => closed++ }));
+  const encoded = deferred();
+  const save = state.mutate("save", async () => {
+    const png = await encoded.promise;
+    if (!draft.current()) throw new Error("Draft cancelled");
+    return png;
+  }, a.id);
+  state.select(b.id);
+  state.select(a.id);
+  encoded.resolve("png");
+  await save;
+  assert.deepEqual(calls, []);
+  assert.equal(closed, 1);
+  assert.equal(state.getSnapshot().notice, null);
+  unsubscribe();
+});
+
+test("failed save keeps the stored icon and draft available for retry", async () => {
+  let fail = true;
+  const { state } = setup({ save: async () => { if (fail) throw new Error("offline"); } });
+  await state.refresh();
+  state.select(b.id);
+  const draft = createDraft(b.id, () => state.getSnapshot().selected);
+  const image = { close() {} };
+  await draft.load(async () => image);
+  await state.mutate("save", async () => "png", b.id);
+  assert.equal(state.getSnapshot().projects[1].revision, 1);
+  assert.equal(state.getSnapshot().notice.kind, "error");
+  assert.equal(draft.current(), image);
+  fail = false;
+  await state.mutate("save", async () => "png", b.id);
+  assert.equal(state.getSnapshot().notice.text, "Icon saved.");
+  draft.cancel();
+});
 function deferred() {
   let resolve, reject;
   const promise = new Promise((yes, no) => { resolve = yes; reject = no; });

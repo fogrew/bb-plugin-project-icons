@@ -1,35 +1,13 @@
-import { useEffect, useId, useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { definePluginApp, useRealtime, useRpc } from "@get-bb/plugin-sdk/app";
 import type { rpcContract } from "./server";
 import { ProjectList } from "./components/project-list";
 import { createSettingsState } from "./settings-state";
+import { ImageEditor } from "./components/image-editor";
 import "./app.css";
 
 const base = "/api/v1/plugins/project-icons/http";
 const iconUrl = (id: string, revision: number) => `${base}/icon?projectId=${encodeURIComponent(id)}&v=${revision}`;
-
-async function normalize(file: File): Promise<string> {
-  if (!["image/png", "image/jpeg", "image/webp"].includes(file.type) || file.size > 2_000_000) throw new Error("Choose a PNG, JPEG, or WebP image under 2 MB.");
-  const bitmap = await createImageBitmap(file);
-  try {
-    const canvas = document.createElement("canvas");
-    canvas.width = canvas.height = 64;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) throw new Error("Canvas is unavailable.");
-    const scale = Math.min(64 / bitmap.width, 64 / bitmap.height);
-    const width = bitmap.width * scale;
-    const height = bitmap.height * scale;
-    ctx.drawImage(bitmap, (64 - width) / 2, (64 - height) / 2, width, height);
-    const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob((value) => value ? resolve(value) : reject(new Error("Could not create PNG")), "image/png"));
-    if (blob.size > 65536) throw new Error("Processed icon is too large.");
-    const bytes = new Uint8Array(await blob.arrayBuffer());
-    let binary = "";
-    for (const byte of bytes) binary += String.fromCharCode(byte);
-    return btoa(binary);
-  } finally {
-    bitmap.close();
-  }
-}
 
 function Settings() {
   const rpc = useRpc<typeof rpcContract>();
@@ -41,7 +19,6 @@ function Settings() {
   const { projects, selected, loading, refreshing, loadError, operation, notice } =
     useSyncExternalStore(state.subscribe, state.getSnapshot);
   const [query, setQuery] = useState("");
-  const fileId = useId();
   useEffect(() => {
     void state.refresh();
     return state.cancel;
@@ -67,15 +44,7 @@ function Settings() {
         {projects.some((row) => row.id !== project.id && row.name === project.name) &&
           <small className="bb-project-icons-id">{project.id}</small>}
       </div>
-      <label htmlFor={fileId}>Upload icon</label>
-      <p id={`${fileId}-help`} className="bb-project-icons-help">PNG, JPEG, or WebP; up to 2 MB. Images are fitted to 64 × 64 pixels.</p>
-      <input id={fileId} type="file" accept="image/png,image/jpeg,image/webp"
-        aria-describedby={`${fileId}-help`} disabled={busy}
-        onChange={(event) => {
-          const file = event.target.files?.[0];
-          if (file) void state.mutate("save", () => normalize(file));
-          event.target.value = "";
-        }} />
+      <ImageEditor key={project.id} project={project} state={state} busy={busy} />
       <button type="button" disabled={project.revision === null || busy}
         onClick={() => void state.mutate("remove")}>Remove icon</button>
       {operation?.projectId === selected && <p role="status">
