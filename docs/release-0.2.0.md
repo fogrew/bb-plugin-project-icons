@@ -48,14 +48,33 @@ and Node 26 because the native SQLite dependency could not find the required
 Visual Studio build tools. This local workaround does not establish normal
 installation; the final PR's normal Ubuntu CI is separate evidence.
 
-An isolated official BB 0.47.1 server booted successfully with an independent
-data directory and HTTP health status 200. Before the attempted project
-creation, the direct CLI confirmed that data directory and the actual listener
-was verified as `127.0.0.1:48961`. Project creation failed because no isolated
-local host daemon was running. Verification stopped and the owned server
-process tree was closed. No plugin installation or reload occurred. Fresh
-installation, upgrade preservation, live UI, realtime and screenshots remain
-unverified pending a separately reviewed isolated host-daemon plan.
+Normal Ubuntu CI also passed `npm ci`, typecheck, build and all 187 tests on
+the release PR. Its immutable head and run URL are recorded in the PR.
+
+An isolated official BB 0.47.1 server and host daemon were verified using
+independent state inside the assigned worktree. Before writes, direct CLI
+status matched that directory, the actual listeners were verified as
+`127.0.0.1:48961` and `127.0.0.1:48962`, and daemon status matched the new
+isolated host identity and server URL. Every inherited `BB_*` variable was
+removed from child environments before setting the isolated values. Enrollment
+targeted only the isolated server. No agent sessions were created; the daemon
+automatically performed built-in provider catalog discovery/prewarming.
+
+The isolated project was created and the path install built the plugin's
+frontend, but activation failed with `ENAMETOOLONG` while BB created a runtime
+staging directory under the long managed-worktree path. The install command
+returned success with plugin status `error`; this is not a successful fresh
+installation. A separately reviewed retry used `path.toNamespacedPath` for
+the exact same directory; server startup then failed because `pino-roll`
+rejected the Windows namespace prefix in its log filename. No installed host
+files or accepted plugin code were patched to bypass either failure.
+
+All owned process trees were closed and both test ports were confirmed closed.
+The user's running plugin, BB configuration and data were preserved. The only
+captured screenshot shows isolated BB onboarding, not the plugin's UI. Fresh
+activation, upgrade preservation, actual Settings/sidebar UI and realtime
+remain unverified. These host setup blockers require coordinator follow-up
+before release acceptance; source/build tests do not replace that evidence.
 
 Issue [#6](https://github.com/fogrew/bb-plugin-project-icons/issues/6) remains
 open. The owner controls release integration into `main`, the actual release
