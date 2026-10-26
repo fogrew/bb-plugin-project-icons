@@ -37,6 +37,14 @@ export default function plugin(bb: BbPluginApi) {
   };
   bb.onDispose(() => { disposed = true; if (cleanup) clearTimeout(cleanup); offers.clear(); });
   const readIndex = async (): Promise<Index> => (await bb.storage.kv.get<Index>("index")) ?? {};
+  const preserveIndexRevisions = async (index: Index) => {
+    const persisted = (await bb.storage.kv.get<number>("revisionHighwater")) ?? 0;
+    let maximum = persisted;
+    for (const value of Object.values(index)) maximum = Math.max(maximum, value);
+    if (!Number.isSafeInteger(maximum)) throw new Error("Icon revision exhausted");
+    // Legacy indexes can predate the watermark. Persist their maximum before discarding any revision.
+    if (maximum > persisted) await bb.storage.kv.set("revisionHighwater", maximum);
+  };
   const nextRevision = async (index: Index) => {
     let revision = Math.max(Date.now(), (await bb.storage.kv.get<number>("revisionHighwater")) ?? 0);
     for (const value of Object.values(index)) revision = Math.max(revision, value);
@@ -56,14 +64,13 @@ export default function plugin(bb: BbPluginApi) {
     for (const id of offers.keys()) if (!projectIds.has(id)) offers.delete(id);
     prune();
     const index = await readIndex();
-    let changed = false;
-    for (const id of Object.keys(index)) {
-      if (projectIds.has(id)) continue;
+    const orphanIds = Object.keys(index).filter(id => !projectIds.has(id));
+    if (orphanIds.length) await preserveIndexRevisions(index);
+    for (const id of orphanIds) {
       delete index[id];
       await bb.storage.kv.delete(`image:${id}`);
-      changed = true;
     }
-    if (changed) await bb.storage.kv.set("index", index);
+    if (orphanIds.length) await bb.storage.kv.set("index", index);
     return { projects, index };
   });
   const projectExists = async (id: string): Promise<boolean> => (await bb.sdk.projects.list()).some((project) => project.id === id);
@@ -74,6 +81,7 @@ export default function plugin(bb: BbPluginApi) {
     // KV has no multi-key transaction. Fail closed even on a partially failed write.
     offers.delete(projectId);
     prune();
+    if (removed) await preserveIndexRevisions(index);
     delete index[projectId];
     await bb.storage.kv.delete(`image:${projectId}`);
     await bb.storage.kv.set("index", index);

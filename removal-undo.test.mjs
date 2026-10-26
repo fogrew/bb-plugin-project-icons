@@ -21,6 +21,95 @@ async function setup(t) {
   return { bb: api, harness, projects, call, save, remove, restore };
 }
 
+for (const method of ["remove", "removeWithUndo", "reconcile"]) {
+  for (const persisted of [5000, 20000]) {
+    test(`${method} retains the larger of a legacy index revision and watermark ${persisted}`, async t => {
+      const s = await setup(t);
+      await s.bb.storage.kv.set("index", { [projectId]: 10000 });
+      await s.bb.storage.kv.set(`image:${projectId}`, base64);
+      await s.bb.storage.kv.set("revisionHighwater", persisted);
+      t.mock.method(Date, "now", () => 9999);
+      if (method === "reconcile") {
+        s.projects.shift();
+        await s.call("list", null);
+        s.projects.push({ id: projectId, name: "A" });
+      } else await s.call(method, { projectId });
+      const maximum = Math.max(10000, persisted);
+      assert.equal(await s.bb.storage.kv.get("revisionHighwater"), maximum);
+      const replacement = await s.harness.lifecycle.reload(plugin);
+      t.after(() => replacement.harness.lifecycle.dispose());
+      assert.ok((await replacement.harness.behavior.callRpc("save", { projectId, base64 })).revision > maximum);
+    });
+  }
+
+  test(`legacy revision survives ${method}, reload and clock rollback without an existing highwater`, async t => {
+    const s = await setup(t);
+    const legacyRevision = 10000;
+    await s.bb.storage.kv.set("index", { [projectId]: legacyRevision });
+    await s.bb.storage.kv.set(`image:${projectId}`, base64);
+    assert.equal(await s.bb.storage.kv.get("revisionHighwater"), undefined);
+    t.mock.method(Date, "now", () => legacyRevision - 1);
+    if (method === "reconcile") {
+      s.projects.shift();
+      await s.call("list", null);
+      s.projects.push({ id: projectId, name: "A" });
+    } else await s.call(method, { projectId });
+    const replacement = await s.harness.lifecycle.reload(plugin);
+    t.after(() => replacement.harness.lifecycle.dispose());
+    const changed = opaquePng;
+    const saved = await replacement.harness.behavior.callRpc("save", { projectId, base64: changed.toString("base64") });
+    assert.ok(saved.revision > legacyRevision, `Revision ${saved.revision} reused the discarded legacy cache key`);
+  });
+
+  for (const failure of ["get", "set"]) {
+    test(`${method} fails before discarding legacy data when highwater ${failure} fails`, async t => {
+      const s = await setup(t);
+      const legacyIndex = { [projectId]: 10000, [otherId]: 20000 };
+      await s.bb.storage.kv.set("index", legacyIndex);
+      await s.bb.storage.kv.set(`image:${projectId}`, base64);
+      await s.bb.storage.kv.set(`image:${otherId}`, base64);
+      const original = s.bb.storage.kv[failure];
+      s.bb.storage.kv[failure] = async (key, ...args) => {
+        if (key === "revisionHighwater") throw new Error("Highwater unavailable");
+        return original(key, ...args);
+      };
+      if (method === "reconcile") s.projects.splice(0);
+      await assert.rejects(method === "reconcile" ? s.call("list", null) : s.call(method, { projectId }));
+      s.bb.storage.kv[failure] = original;
+      assert.deepEqual(await s.bb.storage.kv.get("index"), legacyIndex);
+      assert.equal(await s.bb.storage.kv.get(`image:${projectId}`), base64);
+      assert.equal(await s.bb.storage.kv.get(`image:${otherId}`), base64);
+      // The failed operation must not poison the shared queue.
+      s.projects.splice(0, s.projects.length, { id: projectId, name: "A" }, { id: otherId, name: "B" });
+      assert.ok((await s.save()).revision > 20000);
+    });
+  }
+
+  for (const key of [`image:${projectId}`, "index"]) {
+    test(`${method} keeps the legacy watermark when ${key} is written then reports failure`, async t => {
+      const s = await setup(t);
+      await s.bb.storage.kv.set("index", { [projectId]: 10000 });
+      await s.bb.storage.kv.set(`image:${projectId}`, base64);
+      t.mock.method(Date, "now", () => 9999);
+      const mutation = key === "index" ? "set" : "delete";
+      const original = s.bb.storage.kv[mutation];
+      s.bb.storage.kv[mutation] = async (writtenKey, ...args) => {
+        const result = await original(writtenKey, ...args);
+        if (writtenKey === key) throw new Error("Write completed but acknowledgement failed");
+        return result;
+      };
+      if (method === "reconcile") s.projects.shift();
+      await assert.rejects(method === "reconcile" ? s.call("list", null) : s.call(method, { projectId }));
+      s.bb.storage.kv[mutation] = original;
+      assert.equal(await s.bb.storage.kv.get("revisionHighwater"), 10000);
+      if (method === "reconcile") s.projects.push({ id: projectId, name: "A" });
+      const replacement = await s.harness.lifecycle.reload(plugin);
+      t.after(() => replacement.harness.lifecycle.dispose());
+      assert.ok((await replacement.harness.behavior.callRpc("save", { projectId, base64 })).revision > 10000);
+    });
+  }
+}
+
 test("retention evicts oldest offers and reconciles removed projects", async (t) => {
   const s = await setup(t);
   let oldest, latest;

@@ -95,31 +95,48 @@ At implementation verification, all 144 root tests passed on Node 22.19.0 and
 node --max-old-space-size=128 --test --test-timeout=10000 '*.test.mjs'
 ```
 
-The current manifest's `npm run check` runs only `server.test.mjs` after
-typechecking and building. Run all root test files explicitly until #2's CI
-test discovery is integrated. The SDK 0.6.49 test harness requires temporary
-`cron-parser@5.10.2` locally; it is installed without saving or changing the
-lockfile here. #22 owns the permanent toolchain correction.
+Accepted CI/tooling now includes the SDK harness dependency and discovers all
+root and scripts test suites through `npm run check`, after quality checks,
+typechecking and the pinned standalone build. `cron-parser@5.10.2` is part of
+that accepted lockfile; no temporary harness dependency is needed.
+On Windows without native build prerequisites, `npm ci --ignore-scripts`
+supports local checks; normal installation is verified separately by exact-head
+Ubuntu CI. This does not establish installed-plugin or remote-client behavior.
 
-The baseline server bundle was 210,673 bytes; the final validator/decoder
-bundle is 244,736 bytes (+34,063), including the embedded MIT notice. The app bundle does
+After synchronization with accepted develop, the complete local
+`npm run check` passed all 187 root and scripts tests on Node 26.8.1 using
+`npm ci --ignore-scripts` on Windows. This includes all accepted legacy
+highwater tests, with real valid replacement PNGs. The synchronized pinned
+build produces a 245,047-byte server bundle with the complete MIT notice.
+Exact-head Ubuntu CI separately verifies normal `npm ci` and the full check.
+
+The original host-toolchain baseline server bundle was 210,673 bytes; its
+validator/decoder bundle was 244,736 bytes (+34,063), including the embedded
+MIT notice. These historical measurements are not an integration-toolchain
+comparison; the PR reports the synchronized build size. The app bundle does
 not import the decoder. The source's MIT notice is retained in the server
 bundle; no new dependency license is imposed on the project's original code.
 
-Local build used BB 0.47.1 / host SDK 0.6.79 with the existing pinned SDK 0.6.49
-warning. Published bb-app 0.46.0 and 0.46.1 declare Node
+The original local build used BB 0.47.1 / host SDK 0.6.79. The synchronized
+build uses the accepted pinned standalone bb-app 0.46.1 / SDK 0.6.49 toolchain.
+Published bb-app 0.46.0 and 0.46.1 declare Node
 `^22.19.0 || ^24.0.0 || ^26.0.0`; native zlib CRC32 predates that floor.
 The minimum supported Node run verifies CRC32 and complete-stream consumption,
 including trailing garbage and concatenated zlib streams. Installed-plugin
 runtime, remote-client behavior, Safari and Firefox remain untested here.
 
-This branch starts at reviewed #24/PR #27 head
-`00add288be354d73a6108547d5156fc549ff98c8`, inheriting #4/PR #23 and
-#3/PR #21. Its draft PR initially targets `feature/24-safe-removal-undo`.
-After separately approved dependency merges, retarget to develop and recheck
-the diff, lockfile, all root tests and relevant runtime acceptance against the
-actual integration base. No sibling #5/#7 code is included. #2 remains an
-integration gate and release checkpoint #6 also waits for #28.
+The original reviewed validator commit is
+`798ed0a2408275a507850290d9113c7c72bed676`, based on #24/PR #27 head
+`00add288be354d73a6108547d5156fc549ff98c8` and inheriting #4/PR #23 and
+#3/PR #21. After dependency acceptance, this branch additively synchronized
+accepted develop `bd3d225b299f92ca9cd3741cf676fa3a495cf24e` and PR #30 targets
+develop. The reviewed validator is unchanged. Accepted Undo/highwater safety,
+#5 input handling and #32 slider accessibility are retained.
+The manifest/lockfile retain the accepted CI toolchain plus only exact
+pngjs 7.0.0 and @types/pngjs 6.0.5 additions; there is no dependency version drift.
+Final integration requires synchronized-head checks and review under the
+current contribution policy; this worker does not perform the integration merge.
+Release checkpoint #6 also waits for #28.
 
 ## Primary references
 
