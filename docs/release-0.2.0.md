@@ -38,8 +38,8 @@ Other project pickers do not display these images.
 
 Build and SDK fake-host tests do not prove installation, upgrade, real Settings
 slots, sidebar integration or cross-client realtime. Fresh installation and
-upgrade must be verified in an isolated BB instance with independent data and
-configuration before final acceptance. The user's running BB installation is
+upgrade verification uses isolated BB instances with independent data and
+configuration. The user's running BB installation is
 outside this preparation task's runtime mutation scope.
 
 Local Node 24 verification passed `npm run check` with 187 tests after
@@ -69,12 +69,47 @@ the exact same directory; server startup then failed because `pino-roll`
 rejected the Windows namespace prefix in its log filename. No installed host
 files or accepted plugin code were patched to bypass either failure.
 
-All owned process trees were closed and both test ports were confirmed closed.
-The user's running plugin, BB configuration and data were preserved. The only
-captured screenshot shows isolated BB onboarding, not the plugin's UI. Fresh
-activation, upgrade preservation, actual Settings/sidebar UI and realtime
-remain unverified. These host setup blockers require coordinator follow-up
-before release acceptance; source/build tests do not replace that evidence.
+The coordinator then approved short, unique ordinary temporary directories,
+with exact canonical paths recorded in the local artifact manifests. Runtime
+staging paths were checked below the Windows path limit before startup.
+Fresh and upgrade instances used distinct directories, host identities and
+loopback server/daemon port pairs; assertions were repeated before writes.
+
+Fresh installation reached plugin status `running` with the real frontend
+loaded. In the actual Settings slot, file-input upload and Save updated another
+browser context through realtime. Fill/Zoom followed by Cancel preserved the
+exact persisted HTTP PNG bytes. Editing and saving changed bytes and revision;
+Remove/Undo restored the edited bytes and updated the second context.
+
+Upgrade verification installed the exact `main` baseline
+`ce8c29e7160180989358a466c55fd1278ea81a02` as `0.1.0` in a separate instance.
+An icon was seeded through its real RPC and retrieved over HTTP. Updating the
+disposable path source to the prepared release and installing that same path
+activated `0.2.0`, preserving the project assignment, revision and all 303 PNG
+bytes (SHA-256
+`835700431e4d9521bb8151402795c76ee9ff218deb53edff848204697f9046d5`).
+The actual upgraded Settings slot displayed the preserved icon. This
+checks a local path upgrade; published Git/tag update resolution was not tested.
+
+All owned browser, daemon and server process trees were closed; the four test
+ports were confirmed closed. The user's running plugin, BB configuration and
+data were preserved. Local artifacts include assertion/result JSON, exact
+launch drivers, directory manifests and screenshots of the editor draft,
+restored icon and upgraded Settings UI. These artifacts remain outside Git
+under the assigned worktree's ignored `dist/release-qa` directory.
+The draft screenshot shows the visible upper editor; lower controls extend
+outside that viewport and are verified by the interaction checks, not that image.
+
+Native sidebar headings were not exercised because the isolated instances had
+no agent threads. Read-only inspection found that the installed public create
+schema rejects empty input for ordinary threads, the CLI requires a prompt,
+and idle forks require an existing provider session. No supported inert first
+thread path was established, and no agent sessions were spawned. Native
+operating-system file dialogs/clipboard, browser drag/drop, other browsers,
+remote devices and other platforms remain untested. The browser checks used
+headless installed Chrome with actual file-input selection. Final UI acceptance
+remains with the owner and coordinator; the two Windows host setup failures
+remain follow-up evidence.
 
 Issue [#6](https://github.com/fogrew/bb-plugin-project-icons/issues/6) remains
 open. The owner controls release integration into `main`, the actual release
