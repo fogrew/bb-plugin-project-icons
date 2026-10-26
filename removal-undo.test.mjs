@@ -25,6 +25,26 @@ async function setup(t) {
 }
 
 for (const method of ["remove", "removeWithUndo", "reconcile"]) {
+  for (const persisted of [5000, 20000]) {
+    test(`${method} retains the larger of a legacy index revision and watermark ${persisted}`, async t => {
+      const s = await setup(t);
+      await s.bb.storage.kv.set("index", { [projectId]: 10000 });
+      await s.bb.storage.kv.set(`image:${projectId}`, base64);
+      await s.bb.storage.kv.set("revisionHighwater", persisted);
+      t.mock.method(Date, "now", () => 9999);
+      if (method === "reconcile") {
+        s.projects.shift();
+        await s.call("list", null);
+        s.projects.push({ id: projectId, name: "A" });
+      } else await s.call(method, { projectId });
+      const maximum = Math.max(10000, persisted);
+      assert.equal(await s.bb.storage.kv.get("revisionHighwater"), maximum);
+      const replacement = await s.harness.lifecycle.reload(plugin);
+      t.after(() => replacement.harness.lifecycle.dispose());
+      assert.ok((await replacement.harness.behavior.callRpc("save", { projectId, base64 })).revision > maximum);
+    });
+  }
+
   test(`legacy revision survives ${method}, reload and clock rollback without an existing highwater`, async t => {
     const s = await setup(t);
     const legacyRevision = 10000;
