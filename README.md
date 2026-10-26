@@ -22,6 +22,8 @@ Source images must be under 2 MB. This compressed-file limit is not a decoded-pi
 
 The image area accepts the file picker, file drag-and-drop, or image paste while that area or its editor controls have focus. Tab to the image area to paste with the normal keyboard shortcut; search and text fields keep ordinary paste behavior. Only files are accepted, not image URLs or HTML. Choose one file at a time: multiple files produce an error and preserve the current draft. A new single file replaces the draft, including a pending decode; only the newest decode can become the preview. Invalid or unreadable images show an error and can be retried with the same file. During save/removal, new files are refused; wait for completion and try again. Switching projects cancels pending input and never transfers a draft to another project.
 
+Removing an icon offers **Undo removal** for up to 15 seconds, with a visible deadline. A newer save/removal, project switch, capacity eviction or server/plugin reload can end the offer earlier. Undo restores only that exact deletion and never replaces a newer icon. See [the Undo contract](docs/removal-undo.md) for bounded retention, failure and reload behavior.
+
 BB stores icons in the plugin's server-side storage and serves them through same-origin plugin routes. Desktop and remote browsers connected to the same BB server share the assignments. Changes update open clients through BB realtime events and also refresh when a tab regains focus.
 
 For project headings with an image, Project Icons hides the Project Colors dot to avoid showing two icons. Project Colors remains installed and controls other projects as before.
@@ -47,6 +49,8 @@ For a focused settings-state check, run `node --test settings-state.test.mjs`. I
 For focused crop regressions, run `node --test image-processing.test.mjs settings-state.test.mjs`. These suites are included in `npm run check` and CI. They cover image geometry, transparent-canvas policy, draft ownership, cancellation and resource disposal; they do not replace live host integration checks.
 
 For focused input regressions, run `node --test image-input.test.mjs`. This suite is included in `npm run check` and CI. It covers file-event ownership, nested drag tracking, multiple-file policy and shared decoder validation using event/transfer doubles; it does not verify operating-system clipboard or native file dialogs.
+
+For focused Undo regressions, build first, then run `node --test removal-undo.test.mjs undo-state.test.mjs`. These suites are included in `npm run check` and CI. They cover server authority, races, expiry, replay, legacy revision/cache safety, storage failures and client operation ownership. The fake host and state tests do not establish live BB or OS integration.
 
 For the finite crop-label regression, use the temporary browser tooling below,
 run `npm run build`, then `node crop-labels.browser.mjs`. It checks native Chrome

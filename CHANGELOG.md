@@ -10,6 +10,10 @@ with the explicit pre-1.0 policy in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ### Added
 
+- Undo project icon removal for up to 15 seconds with an accessible deadline,
+  bounded temporary retention and server-side protection against overwriting
+  newer changes. Server/plugin reload invalidates pending offers
+  ([#24](https://github.com/fogrew/bb-plugin-project-icons/issues/24)).
 - Choose project icon images through one accessible picker, drag-and-drop or
   focused paste area, with shared validation, project-owned drafts and clear
   failure/busy feedback
@@ -43,6 +47,9 @@ with the explicit pre-1.0 policy in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ### Fixed
 
+- Preserve legacy icon revision maxima before removal or project cleanup so
+  reloads and clock rollback cannot reuse a previously cached icon URL
+  ([#24](https://github.com/fogrew/bb-plugin-project-icons/issues/24)).
 - Give crop sliders stable, clickable labels and accessible names across
   multiple editors ([#32](https://github.com/fogrew/bb-plugin-project-icons/issues/32)).
 - Kept asynchronous icon changes and feedback attached to their initiating
