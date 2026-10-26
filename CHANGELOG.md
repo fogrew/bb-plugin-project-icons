@@ -8,6 +8,11 @@ with the explicit pre-1.0 policy in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Unreleased
 
+## 0.2.0 (pending release)
+
+Release preparation only; the owner will record the actual release date when
+releasing. No historical 0.1.0 release date is asserted.
+
 ### Added
 
 - Undo project icon removal for up to 15 seconds with an accessible deadline,
