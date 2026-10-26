@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { ImageInput } from "./image-input";
 import { singleImageFile } from "../lib/image-input";
 import type { createSettingsState, Project } from "../settings-state";
@@ -8,6 +8,7 @@ import { clampCrop, decodeImage, defaultCrop, drawIcon, encodeIcon, offsetBounds
 type Props = { project: Project; state: ReturnType<typeof createSettingsState>; busy: boolean };
 
 export function ImageEditor({ project, state, busy }: Props) {
+  const controlId = useId();
   const draft = useMemo(() => createDraft<ImageBitmap>(project.id, () => state.getSnapshot().selected), [project.id, state]);
   const [crop, setCrop] = useState<Crop>(defaultCrop);
   const [preview, setPreview] = useState("");
@@ -99,11 +100,12 @@ export function ImageEditor({ project, state, busy }: Props) {
         {([
           ["zoom", "Zoom", 1, 4, 0.05], ["x", "Horizontal offset (pixels)", -bounds.x, bounds.x, "any"],
           ["y", "Vertical offset (pixels)", -bounds.y, bounds.y, "any"],
-        ] as const).map(([key, label, min, max, step]) => <label key={key}>
-          {label}: <output>{Number(crop[key].toFixed(2))}</output>
-          <input type="range" min={min} max={max} step={step} value={crop[key]} disabled={min === max}
+        ] as const).map(([key, label, min, max, step]) => <div key={key} className="bb-project-icons-crop-control">
+          <label htmlFor={`${controlId}-${key}`}>{label}</label>
+          <output htmlFor={`${controlId}-${key}`}>{Number(crop[key].toFixed(2))}</output>
+          <input id={`${controlId}-${key}`} type="range" min={min} max={max} step={step} value={crop[key]} disabled={min === max}
             onChange={(event) => change({ ...crop, [key]: Number(event.target.value) })} />
-        </label>)}
+        </div>)}
       </fieldset>
     </>}
     {(preview || loading || error) && <div className="bb-project-icons-actions">

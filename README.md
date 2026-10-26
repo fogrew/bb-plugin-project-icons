@@ -48,4 +48,12 @@ For focused crop regressions, run `node --test image-processing.test.mjs setting
 
 For focused input regressions, run `node --test image-input.test.mjs`. This suite is included in `npm run check` and CI. It covers file-event ownership, nested drag tracking, multiple-file policy and shared decoder validation using event/transfer doubles; it does not verify operating-system clipboard or native file dialogs.
 
+For the finite crop-label regression, use the temporary browser tooling below,
+run `npm run build`, then `node crop-labels.browser.mjs`. It checks native Chrome
+slider names and clickable label associations across two editors, continuous
+keyboard focus, pointer drag, Fill, and exact preview/save PNG bytes after an
+injected encoding failure. Results are written under ignored
+`dist/crop-labels-browser/`. SDK/RPC and theme tokens are fixtures; installed BB
+integration and OS input are untested. This harness is separate from default CI.
+
 For the optional finite component/browser harness, install temporary tooling with `npm install --no-save --package-lock=false --ignore-scripts react@19 react-dom@19 playwright-core`, run `npm run build`, then run `node image-input.browser.mjs`. It launches and closes headless Chrome, uses a local file fixture without a server, and writes results and a 320 px screenshot under ignored `dist/image-input-browser/`. Set `CHROME_PATH` if Chrome is elsewhere. The harness uses real React, DOM focus, PNG decoding and canvas rendering, with synthetic drop/paste events and fake RPC responses. It does not install/reload the plugin or establish live-BB, native file-dialog or OS clipboard evidence. This optional harness is separate from the default CI suite; package manifests remain unchanged by the temporary tooling install.

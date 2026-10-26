@@ -43,6 +43,8 @@ with the explicit pre-1.0 policy in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ### Fixed
 
+- Give crop sliders stable, clickable labels and accessible names across
+  multiple editors ([#32](https://github.com/fogrew/bb-plugin-project-icons/issues/32)).
 - Kept asynchronous icon changes and feedback attached to their initiating
   project when selection changes
   ([#3](https://github.com/fogrew/bb-plugin-project-icons/issues/3)).
