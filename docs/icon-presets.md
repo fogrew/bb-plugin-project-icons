@@ -13,6 +13,13 @@ Crop controls mount for the lifetime of the decoded image, independently of the
 encoded snapshot. A redraw clears the snapshot and disables Save while keeping
 range/button DOM and focus intact, including after an encoding failure; another
 adjustment retries encoding from the retained image.
+Each crop control has a per-instance React useId-derived range ID and explicit
+native label association. The label contains only its stable name: Zoom,
+Horizontal offset (pixels), or Vertical offset (pixels). Numeric output is a
+sibling outside the label, associated with the same range. This keeps names
+stable without overriding native semantics with ARIA. The inherited baseline
+label defect is also tracked separately in #32; no sibling implementation is
+imported.
 The source switch cancels synchronously, including an away-and-back switch in
 one React batch. Project changes, Cancel and unmount invalidate pending work.
 A failed Save retains the encoded draft. An RPC already dispatched cannot be
@@ -58,8 +65,8 @@ using the same installed build tool:
 
 | Artifact | Base bytes | Changed bytes | Delta | Base gzip | Changed gzip |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| app.js | 24,530 | 32,301 | +7,771 | 9,064 | 11,823 |
-| app.css | 10,376 | 11,361 | +985 | 1,994 | 2,099 |
+| app.js | 24,530 | 32,405 | +7,875 | 9,064 | 11,836 |
+| app.css | 10,376 | 11,354 | +978 | 1,994 | 2,096 |
 | server.js | 208,596 | 208,596 | 0 | 60,899 | 60,899 |
 
 Gzip uses Python's default compression with mtime zero. These are complete
@@ -149,11 +156,13 @@ The finite presets Chrome harness checks real PNG bytes, rounded transparency,
 all glyph bounds, all palette contrasts and visible 20-pixel ink, Unicode
 fixtures, recents, retry/outcomes/ownership, source/project away-and-back,
 all 12 directed source replacements, crop regression (native Zoom ArrowRight twice, continuous pointer drag and
-Fill focus and native-label/accessibility-tree names for all three sliders),
+Fill focus and native-label/accessibility-tree names for all three sliders,
+exact-name Playwright getByRole queries, native label-click focus and two-instance
+ID uniqueness),
 null-snapshot Save rejection after encoding failure, crop retry,
 late bitmap disposal,
 unmount and trusted CDP keyboard/focus. Light at 768 px and dark at 320 px
-each pass 83 checks. The inherited emoji harness passes 22 checks in light mode.
+each pass 86 checks when the optional existing Playwright package path is supplied. The inherited emoji harness passes 22 checks in light mode.
 Screenshots/reports are generated under ignored `dist/`; they are local evidence,
 not repository assets.
 

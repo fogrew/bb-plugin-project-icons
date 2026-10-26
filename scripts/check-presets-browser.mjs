@@ -1,5 +1,5 @@
 // Finite component check, without a BB install or new dependencies.
-// Usage: node scripts/check-presets-browser.mjs <esbuild-package-dir> <existing-node_modules> <chrome-executable> [light|dark]
+// Usage: node scripts/check-presets-browser.mjs <esbuild-package-dir> <existing-node_modules> <chrome-executable> [light|dark] [playwright-core-package-dir]
 // Uses an isolated temporary Chrome profile and removes it on exit.
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
@@ -10,7 +10,7 @@ import { pathToFileURL } from "node:url";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 
-const [esbuildDir, modulesDir, chromePath, theme = "light"] = process.argv.slice(2);
+const [esbuildDir, modulesDir, chromePath, theme = "light", playwrightDir] = process.argv.slice(2);
 if (!esbuildDir || !modulesDir || !chromePath) throw new Error("Supply existing esbuild package, node_modules and Chrome executable paths.");
 const require = createRequire(import.meta.url);
 const { build } = require(resolve(esbuildDir));
@@ -35,6 +35,7 @@ const bundle = await build({
         return bitmap;
       };
       const root=createRoot(document.getElementById("app"));
+      let secondRoot,secondContainer;
       const calls = [];
       let projects = [{id:"proj_aaaaaaaaaa",name:"Привет мир",revision:1},{id:"proj_bbbbbbbbbb",name:"Beta",revision:null}];
       const state = createSettingsState({
@@ -49,7 +50,13 @@ const bundle = await build({
       }
       Object.defineProperty(document.fonts, "ready", {get: () => fontGate || Promise.resolve(document.fonts)});
       window.harness = {
-        state, calls, unmount:()=>root.unmount(), resources:()=>({opened,closed}),
+        state, calls, unmount:()=>root.unmount(),
+        mountSecond(){
+          secondContainer=document.createElement("div");secondContainer.id="second";secondContainer.className="bb-project-icons-settings";
+          document.body.append(secondContainer);secondRoot=createRoot(secondContainer);secondRoot.render(<App/>);
+        },
+        unmountSecond(){secondRoot.unmount();secondContainer.remove();},
+        resources:()=>({opened,closed}),
         holdDecode(){decodeGate=new Promise(r=>{decodeRelease=r;});},
         releaseDecode(){decodeGate=undefined;decodeRelease();},
         drawPreset, palette, foreground, contrast, glyphs, fail: value => {fail=value;},
@@ -283,9 +290,35 @@ try {
   assert.ok(sliderLabels.every(input=>input.id&&input.labels===1&&input.explicit),"Every crop slider must have an explicit native label");
   assert.equal(sliderNames.length,3);
   for(const [index,label] of ["Zoom","Horizontal offset (pixels)","Vertical offset (pixels)"].entries()){
-    assert.ok(sliderNames[index]?.startsWith(label+":"),"Missing accessible slider name: "+label);
+    assert.equal(sliderNames[index],label,"Missing exact accessible slider name");
   }
   checks.push("all three crop sliders have explicit native labels and accessibility-tree names");
+  if(playwrightDir){
+    const {chromium}=require(resolve(playwrightDir));
+    const pwBrowser=await chromium.connectOverCDP("http://127.0.0.1:"+port);
+    const pwPage=pwBrowser.contexts()[0].pages()[0];
+    for(const name of ["Zoom","Horizontal offset (pixels)","Vertical offset (pixels)"]){
+      assert.equal(await pwPage.getByRole("slider",{name,exact:true}).count(),1);
+    }
+    checks.push("Playwright getByRole slider resolves all three exact stable accessible names");
+    await pwPage.getByText("Zoom",{exact:true}).click();
+    assert.ok(await pwPage.getByRole("slider",{name:"Zoom",exact:true}).evaluate(input=>document.activeElement===input));
+    checks.push("native clickable Zoom label focuses the named range");
+    await evaluate("window.harness.mountSecond()");
+    const second=pwPage.locator("#second");
+    const imageBytes=await evaluate('(()=>{const canvas=document.createElement("canvas");canvas.width=120;canvas.height=60;canvas.getContext("2d").fillRect(0,0,120,60);return canvas.toDataURL().split(",")[1];})()');
+    await second.locator('input[type="file"]').setInputFiles({name:"second.png",mimeType:"image/png",buffer:Buffer.from(imageBytes,"base64")});
+    await second.getByRole("slider",{name:"Zoom",exact:true}).waitFor();
+    const instances=await evaluate('Array.from(document.querySelectorAll("input[type=range]")).map(input=>({id:input.id,labelCount:input.labels.length,control:input.labels[0]?.control===input,htmlFor:input.labels[0]?.htmlFor}))');
+    assert.equal(instances.length,6);assert.equal(new Set(instances.map(input=>input.id)).size,6);
+    assert.ok(instances.every(input=>input.id&&input.labelCount===1&&input.control&&input.htmlFor===input.id));
+    for(const name of ["Zoom","Horizontal offset (pixels)","Vertical offset (pixels)"]){
+      assert.equal(await pwPage.getByRole("slider",{name,exact:true}).count(),2);
+    }
+    checks.push("two editor instances have six unique range IDs and correct native label targets");
+    await evaluate("window.harness.unmountSecond();window.zoomNode.focus()");
+  }
+
 
   for(let n=0;n<2;n++){
     await key("ArrowRight","ArrowRight",39);
@@ -352,7 +385,7 @@ try {
   await new Promise(resolve=>setTimeout(resolve,50));
   assert.equal(await evaluate('!!document.querySelector(\'img[alt="Enlarged draft icon"]\')'),false);
   checks.push("unmount invalidates pending font renderer");
-  await writeFile("dist/presets-report-"+theme+".json",JSON.stringify({checks,theme,cropProbe,failedCrop,sliderLabels,sliderNames,boundaries:"Mocked SDK plugin ID/RPC/projects/realtime/theme; real Chrome fonts, canvas, pixels and trusted CDP keyboard."},null,2));
+  await writeFile("dist/presets-report-"+theme+".json",JSON.stringify({checks,theme,playwright:Boolean(playwrightDir),cropProbe,failedCrop,sliderLabels,sliderNames,boundaries:"Mocked SDK plugin ID/RPC/projects/realtime/theme; real Chrome fonts, canvas, pixels and trusted CDP keyboard."},null,2));
   for(const name of checks)console.log("PASS "+name);
   console.log(checks.length+" component checks passed; screenshot: "+screenshot);
   await send("Browser.close");socket.close();

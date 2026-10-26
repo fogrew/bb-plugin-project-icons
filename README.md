@@ -74,7 +74,10 @@ Run `node --test emoji.test.mjs` for catalog, search, recents and PNG snapshot c
 
 Run `node --test presets.test.mjs` for Unicode boundaries, palette contrast and
 bounded color preferences. `scripts/check-presets-browser.mjs` takes the same
-three dependency/browser paths and optional theme as the emoji harness, uses a
+three dependency/browser paths and optional theme as the emoji harness. Supply
+an optional fifth argument pointing to an existing playwright-core package to
+also check exact slider names with getByRole, label-click focus and unique IDs
+across two editor instances. The harness uses a
 finite isolated Chrome profile and native CDP keyboard events, and writes
 screenshots/reports under ignored `dist/`. No persistent preview or installed
 plugin is changed. See [the implementation contract](docs/icon-presets.md) for
