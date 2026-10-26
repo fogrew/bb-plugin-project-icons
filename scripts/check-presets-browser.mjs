@@ -277,6 +277,16 @@ try {
   }
   await evaluate('window.zoomNode=document.querySelector(\'input[type="range"]\');window.zoomNode.focus()');
   const cropProbe=[];
+  const sliderLabels=await evaluate('Array.from(document.querySelectorAll(\'input[type="range"]\')).map(input=>({id:input.id,labels:input.labels.length,explicit:Array.from(input.labels).every(label=>label.htmlFor===input.id&&label.control===input)}))');
+  const sliderNames=(await send("Accessibility.getFullAXTree")).nodes.filter(node=>node.role?.value==="slider").map(node=>node.name?.value);
+  assert.equal(sliderLabels.length,3);
+  assert.ok(sliderLabels.every(input=>input.id&&input.labels===1&&input.explicit),"Every crop slider must have an explicit native label");
+  assert.equal(sliderNames.length,3);
+  for(const [index,label] of ["Zoom","Horizontal offset (pixels)","Vertical offset (pixels)"].entries()){
+    assert.ok(sliderNames[index]?.startsWith(label+":"),"Missing accessible slider name: "+label);
+  }
+  checks.push("all three crop sliders have explicit native labels and accessibility-tree names");
+
   for(let n=0;n<2;n++){
     await key("ArrowRight","ArrowRight",39);
     await new Promise(resolve=>setTimeout(resolve,40));
@@ -342,7 +352,7 @@ try {
   await new Promise(resolve=>setTimeout(resolve,50));
   assert.equal(await evaluate('!!document.querySelector(\'img[alt="Enlarged draft icon"]\')'),false);
   checks.push("unmount invalidates pending font renderer");
-  await writeFile("dist/presets-report-"+theme+".json",JSON.stringify({checks,theme,cropProbe,failedCrop,boundaries:"Mocked SDK plugin ID/RPC/projects/realtime/theme; real Chrome fonts, canvas, pixels and trusted CDP keyboard."},null,2));
+  await writeFile("dist/presets-report-"+theme+".json",JSON.stringify({checks,theme,cropProbe,failedCrop,sliderLabels,sliderNames,boundaries:"Mocked SDK plugin ID/RPC/projects/realtime/theme; real Chrome fonts, canvas, pixels and trusted CDP keyboard."},null,2));
   for(const name of checks)console.log("PASS "+name);
   console.log(checks.length+" component checks passed; screenshot: "+screenshot);
   await send("Browser.close");socket.close();

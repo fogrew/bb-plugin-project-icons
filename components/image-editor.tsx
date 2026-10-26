@@ -60,9 +60,9 @@ export function ImageEditor(props: EditorProps) {
         {([
           ["zoom", "Zoom", 1, 4, 0.05], ["x", "Horizontal offset (pixels)", -bounds.x, bounds.x, "any"],
           ["y", "Vertical offset (pixels)", -bounds.y, bounds.y, "any"],
-        ] as const).map(([key, label, min, max, step]) => <label key={key}>
+        ] as const).map(([key, label, min, max, step]) => <label key={key} htmlFor={`${id}-${key}`}>
           {label}: <output>{Number(crop[key].toFixed(2))}</output>
-          <input type="range" min={min} max={max} step={step} value={crop[key]} disabled={min === max}
+          <input id={`${id}-${key}`} type="range" min={min} max={max} step={step} value={crop[key]} disabled={min === max}
             onChange={(event) => change({ ...crop, [key]: Number(event.target.value) })} />
         </label>)}
       </fieldset>}

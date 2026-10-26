@@ -58,7 +58,7 @@ using the same installed build tool:
 
 | Artifact | Base bytes | Changed bytes | Delta | Base gzip | Changed gzip |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| app.js | 24,530 | 32,266 | +7,736 | 9,064 | 11,813 |
+| app.js | 24,530 | 32,301 | +7,771 | 9,064 | 11,823 |
 | app.css | 10,376 | 11,361 | +985 | 1,994 | 2,099 |
 | server.js | 208,596 | 208,596 | 0 | 60,899 | 60,899 |
 
@@ -149,10 +149,11 @@ The finite presets Chrome harness checks real PNG bytes, rounded transparency,
 all glyph bounds, all palette contrasts and visible 20-pixel ink, Unicode
 fixtures, recents, retry/outcomes/ownership, source/project away-and-back,
 all 12 directed source replacements, crop regression (native Zoom ArrowRight twice, continuous pointer drag and
-Fill focus), null-snapshot Save rejection after encoding failure, crop retry,
+Fill focus and native-label/accessibility-tree names for all three sliders),
+null-snapshot Save rejection after encoding failure, crop retry,
 late bitmap disposal,
 unmount and trusted CDP keyboard/focus. Light at 768 px and dark at 320 px
-each pass 82 checks. The inherited emoji harness passes 22 checks in light mode.
+each pass 83 checks. The inherited emoji harness passes 22 checks in light mode.
 Screenshots/reports are generated under ignored `dist/`; they are local evidence,
 not repository assets.
 
