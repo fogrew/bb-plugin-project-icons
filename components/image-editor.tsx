@@ -51,7 +51,7 @@ export function ImageEditor(props: EditorProps) {
         if (file) void upload(file);
       }} />
     <DraftOutput draft={png} name={project.name} busy={busy} focus={focus}>
-      <fieldset disabled={busy} className="bb-project-icons-crop-controls">
+      {image && <fieldset disabled={busy} className="bb-project-icons-crop-controls">
         <legend>Image adjustments</legend>
         <div className="bb-project-icons-actions" role="group" aria-label="Image sizing">
           {(["fit", "fill"] as const).map((mode) => <button key={mode} type="button" aria-pressed={crop.mode === mode}
@@ -65,7 +65,7 @@ export function ImageEditor(props: EditorProps) {
           <input type="range" min={min} max={max} step={step} value={crop[key]} disabled={min === max}
             onChange={(event) => change({ ...crop, [key]: Number(event.target.value) })} />
         </label>)}
-      </fieldset>
+      </fieldset>}
     </DraftOutput>
   </div>;
 }

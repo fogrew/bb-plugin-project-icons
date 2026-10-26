@@ -9,6 +9,10 @@ explicit mutation outcome and successful-current-draft callback.
 `DraftOutput` supplies the same actual PNG preview and Save/Cancel buttons for
 Image, Emoji, Glyph and Initials. The image editor retains bitmap ownership,
 decode disposal, Fit/Fill, clamped crop geometry and the resettable native input.
+Crop controls mount for the lifetime of the decoded image, independently of the
+encoded snapshot. A redraw clears the snapshot and disables Save while keeping
+range/button DOM and focus intact, including after an encoding failure; another
+adjustment retries encoding from the retained image.
 The source switch cancels synchronously, including an away-and-back switch in
 one React batch. Project changes, Cancel and unmount invalidate pending work.
 A failed Save retains the encoded draft. An RPC already dispatched cannot be
@@ -54,8 +58,8 @@ using the same installed build tool:
 
 | Artifact | Base bytes | Changed bytes | Delta | Base gzip | Changed gzip |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| app.js | 24,530 | 32,281 | +7,751 | 9,064 | 11,817 |
-| app.css | 10,376 | 11,168 | +792 | 1,994 | 2,087 |
+| app.js | 24,530 | 32,266 | +7,736 | 9,064 | 11,813 |
+| app.css | 10,376 | 11,361 | +985 | 1,994 | 2,099 |
 | server.js | 208,596 | 208,596 | 0 | 60,899 | 60,899 |
 
 Gzip uses Python's default compression with mtime zero. These are complete
@@ -144,9 +148,11 @@ including the five presets tests omitted by the baseline npm test script.
 The finite presets Chrome harness checks real PNG bytes, rounded transparency,
 all glyph bounds, all palette contrasts and visible 20-pixel ink, Unicode
 fixtures, recents, retry/outcomes/ownership, source/project away-and-back,
-all 12 directed source replacements, crop regression, late bitmap disposal,
+all 12 directed source replacements, crop regression (native Zoom ArrowRight twice, continuous pointer drag and
+Fill focus), null-snapshot Save rejection after encoding failure, crop retry,
+late bitmap disposal,
 unmount and trusted CDP keyboard/focus. Light at 768 px and dark at 320 px
-each pass 78 checks. The inherited emoji harness passes 22 checks in light mode.
+each pass 82 checks. The inherited emoji harness passes 22 checks in light mode.
 Screenshots/reports are generated under ignored `dist/`; they are local evidence,
 not repository assets.
 

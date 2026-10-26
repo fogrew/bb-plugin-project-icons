@@ -261,6 +261,77 @@ try {
   assert.equal(await evaluate("document.activeElement.type"),"search");
   assert.equal(await evaluate('!!document.querySelector(\'img[alt="Enlarged draft icon"]\')'),false);
   checks.push("trusted CDP keys: wrapping tabs, Home, Tab, glyph arrows, Enter, Escape and focus");
+  // Native range events must preserve DOM identity and focus across recomputation.
+  await evaluate('document.querySelector(\'[id$="-image-tab"]\').click()');
+  await evaluate(`(async()=>{
+    const canvas=document.createElement("canvas");canvas.width=120;canvas.height=60;
+    canvas.getContext("2d").fillRect(0,0,120,60);
+    const blob=await new Promise(resolve=>canvas.toBlob(resolve));
+    const data=new DataTransfer();data.items.add(new File([blob],"range.png",{type:"image/png"}));
+    const input=document.querySelector('input[type="file"]');input.files=data.files;
+    input.dispatchEvent(new Event("change",{bubbles:true}));
+  })()`);
+  for(let n=0;n<100;n++){
+    if(await evaluate('!!document.querySelector(\'input[type="range"]\')'))break;
+    await new Promise(resolve=>setTimeout(resolve,10));
+  }
+  await evaluate('window.zoomNode=document.querySelector(\'input[type="range"]\');window.zoomNode.focus()');
+  const cropProbe=[];
+  for(let n=0;n<2;n++){
+    await key("ArrowRight","ArrowRight",39);
+    await new Promise(resolve=>setTimeout(resolve,40));
+    cropProbe.push(await evaluate('({same:window.zoomNode===document.querySelector(\'input[type="range"]\'),focused:document.activeElement===window.zoomNode,value:document.querySelector(\'input[type="range"]\')?.value})'));
+  }
+  const rect=await evaluate('(()=>{const e=document.querySelector(\'input[type="range"]\');e.scrollIntoView({block:"center"});const r=e.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height};})()');
+  await send("Input.dispatchMouseEvent",{type:"mousePressed",x:rect.x+rect.width*.25,y:rect.y+rect.height/2,button:"left",clickCount:1});
+  for(const fraction of [.4,.55,.7]){
+    await send("Input.dispatchMouseEvent",{type:"mouseMoved",x:rect.x+rect.width*fraction,y:rect.y+rect.height/2,button:"left",buttons:1});
+    await new Promise(resolve=>setTimeout(resolve,40));
+    cropProbe.push(await evaluate('({same:window.zoomNode===document.querySelector(\'input[type="range"]\'),focused:document.activeElement===window.zoomNode,value:document.querySelector(\'input[type="range"]\')?.value})'));
+  }
+  await send("Input.dispatchMouseEvent",{type:"mouseReleased",x:rect.x+rect.width*.7,y:rect.y+rect.height/2,button:"left",clickCount:1});
+  console.log("Native crop probe: "+JSON.stringify(cropProbe));
+  assert.ok(cropProbe.every(p=>p.same&&p.focused),"Range node/focus must survive both native keys and pointer drag");
+  assert.equal(cropProbe[1].value,"1.1","Both native ArrowRight events must update Zoom");
+  assert.ok(cropProbe.slice(2).every((p,i,list)=>i===0||Number(p.value)>Number(list[i-1].value)),"Pointer drag must keep updating Zoom");
+  checks.push("native Zoom ArrowRight twice and continuous pointer drag retain DOM/focus");
+  await evaluate(`(()=>{
+    window.fillNode=Array.from(document.querySelectorAll("button")).find(button=>button.textContent==="Fill");
+    window.fillNode.focus();
+  })()`);
+  await key("Enter","Enter",13);await new Promise(resolve=>setTimeout(resolve,40));
+  assert.ok(await evaluate('document.activeElement===window.fillNode&&window.fillNode.isConnected&&document.querySelector(\'input[type="range"]\')===window.zoomNode'));
+  checks.push("native Fill activation preserves button focus and crop DOM");
+  const beforeFailure=await evaluate("window.harness.calls.length");
+  await evaluate(`(()=>{
+    window.zoomNode.focus();
+    const encode=HTMLCanvasElement.prototype.toDataURL;
+    HTMLCanvasElement.prototype.toDataURL=function(...args){
+      HTMLCanvasElement.prototype.toDataURL=encode;
+      throw Error("Test PNG encoding failure");
+    };
+  })()`);
+  await key("ArrowRight","ArrowRight",39);await new Promise(resolve=>setTimeout(resolve,40));
+  const failedCrop=await evaluate(`(()=>{
+    const save=Array.from(document.querySelectorAll("button")).find(button=>button.textContent==="Save");
+    save.click();
+    return {same:document.querySelector('input[type="range"]')===window.zoomNode,focused:document.activeElement===window.zoomNode,
+      preview:!!document.querySelector('img[alt="Enlarged draft icon"]'),saveDisabled:save.disabled,error:!!document.querySelector('[role="alert"]')};
+  })()`);
+  assert.deepEqual(failedCrop,{same:true,focused:true,preview:false,saveDisabled:true,error:true});
+  assert.equal(await evaluate("window.harness.calls.length"),beforeFailure,"Null snapshot must not dispatch stale Save");
+  checks.push("failed crop encoding retains focused controls and blocks stale Save");
+  await key("ArrowRight","ArrowRight",39);await new Promise(resolve=>setTimeout(resolve,40));
+  const recoveredUrl=await evaluate('document.querySelector(\'img[alt="Enlarged draft icon"]\')?.src');
+  assert.ok(recoveredUrl);
+  await evaluate('Array.from(document.querySelectorAll("button")).find(button=>button.textContent==="Save").click()');
+  for(let n=0;n<100;n++){
+    if(await evaluate('!window.harness.state.getSnapshot().operation&&!document.querySelector(\'img[alt="Enlarged draft icon"]\')'))break;
+    await new Promise(resolve=>setTimeout(resolve,10));
+  }
+  assert.equal(await evaluate("window.harness.calls.at(-1).base64"),recoveredUrl.split(",")[1]);
+  checks.push("crop retry uses retained bitmap and saves exact recovered PNG");
+
   await evaluate('document.querySelector(\'[id$="-initials-tab"]\').click()');
   await new Promise(resolve=>setTimeout(resolve,100));
   const shot=await send("Page.captureScreenshot",{format:"png"});
@@ -271,7 +342,7 @@ try {
   await new Promise(resolve=>setTimeout(resolve,50));
   assert.equal(await evaluate('!!document.querySelector(\'img[alt="Enlarged draft icon"]\')'),false);
   checks.push("unmount invalidates pending font renderer");
-  await writeFile("dist/presets-report-"+theme+".json",JSON.stringify({checks,theme,boundaries:"Mocked SDK plugin ID/RPC/projects/realtime/theme; real Chrome fonts, canvas, pixels and trusted CDP keyboard."},null,2));
+  await writeFile("dist/presets-report-"+theme+".json",JSON.stringify({checks,theme,cropProbe,failedCrop,boundaries:"Mocked SDK plugin ID/RPC/projects/realtime/theme; real Chrome fonts, canvas, pixels and trusted CDP keyboard."},null,2));
   for(const name of checks)console.log("PASS "+name);
   console.log(checks.length+" component checks passed; screenshot: "+screenshot);
   await send("Browser.close");socket.close();
