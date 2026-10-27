@@ -6,9 +6,12 @@ Status: pending owner release. No release date or tag is asserted.
 
 Project Icons shows projects in a searchable responsive collection, with compact
 mobile headers. Headers show assigned/missing status, wrap long names and identify
-duplicate names by ID. Explicit activation expands one editor immediately after
-that header and reveals its file chooser. Filtering and resize retain drafts
-and Undo, while editor keys remain separate from project navigation. The image
+duplicate names by ID. Explicit activation expands one editor after the selected
+desktop row, including a partial last row, or immediately after the header on
+mobile, and reveals its file chooser. Repeated activation folds/reopens the
+same editor without resetting its draft or Undo deadline; folding requests no
+scrolling. Filtering and resize retain drafts and Undo, while editor keys remain
+separate from project navigation. The image
 editor provides Fit/Fill,
 zoom, position controls, an enlarged preview and a 20 px sidebar sample. Save
 applies the draft; Cancel preserves the existing icon. Choose an image through
@@ -30,8 +33,8 @@ checks. Emoji and glyph selection belong to a later release.
 
 ## Source and compatibility
 
-The accepted source is `48b31008e657dfa1e1f5005235091f28a56c0aed`, including
-the collection from #35 / PR #36 and compact inline editor from #37 / PR #38.
+The accepted source is `1288d88079e20426f2cbdeb81baf369bf0fd7c77`, including
+#35 / PR #36, #37 / PR #38 and desktop-row placement/folding from #39 / PR #40.
 It was synchronized into the
 release branch through an additive personally signed merge.
 Release preparation changes package versions and release documentation only;
@@ -164,7 +167,7 @@ Complementary narrow top/bottom captures confirmed the last card is reachable
 through the host page scroll in both schemes and widths. Both grid runs closed
 their owned browser/daemon/server trees; ports 48965/48966 were confirmed closed.
 
-## Current compact inline verification
+## Earlier compact inline verification
 
 After #37 / PR #38 acceptance, actual BB QA used signed release source
 `5b3f970033de1b00e13dcf172eb450856c6426ab`, whose application/test/build/SDK
