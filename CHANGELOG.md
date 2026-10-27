@@ -51,6 +51,11 @@ with the explicit pre-1.0 policy in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ### Fixed
 
+- Keep complete desktop project-card rows when opening the single inline editor,
+  including partial final rows. Repeated header click or Enter/Space now folds
+  and reopens it while preserving the same editor, draft and Undo deadline;
+  folding never requests scrolling
+  ([#39](https://github.com/fogrew/bb-plugin-project-icons/issues/39)).
 - Reveal one inline project icon editor after explicit header activation, with
   compact mobile rows, visible expanded feedback and reduced-motion-aware viewport
   reveal. Preserve drafts and Undo through filtering and resize; keep editor keys
