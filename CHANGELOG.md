@@ -8,14 +8,6 @@ with the explicit pre-1.0 policy in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Unreleased
 
-### Fixed
-
-- Reveal one inline project icon editor after explicit header activation, with
-  compact mobile rows, visible expanded feedback and reduced-motion-aware viewport
-  reveal. Preserve drafts and Undo through filtering and resize; keep editor keys
-  separate from project navigation
-  ([#37](https://github.com/fogrew/bb-plugin-project-icons/issues/37)).
-
 ### Added
 
 - Undo project icon removal for up to 15 seconds with an accessible deadline,
@@ -59,6 +51,11 @@ with the explicit pre-1.0 policy in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ### Fixed
 
+- Reveal one inline project icon editor after explicit header activation, with
+  compact mobile rows, visible expanded feedback and reduced-motion-aware viewport
+  reveal. Preserve drafts and Undo through filtering and resize; keep editor keys
+  separate from project navigation
+  ([#37](https://github.com/fogrew/bb-plugin-project-icons/issues/37)).
 - Reject malformed or truncated PNG assignments before saving while preserving
   existing icons, revision state and removal Undo offers
   ([#28](https://github.com/fogrew/bb-plugin-project-icons/issues/28)).
