@@ -4,7 +4,10 @@ Status: pending owner release. No release date or tag is asserted.
 
 ## Release notes
 
-Project Icons adds a searchable project list and an image editor with Fit/Fill,
+Project Icons shows all projects in an always-expanded, searchable responsive
+icon card grid. Cards show assigned/missing status, wrap long names, identify
+duplicate names by ID and retain the single editor below the grid. The image
+editor provides Fit/Fill,
 zoom, position controls, an enlarged preview and a 20 px sidebar sample. Save
 applies the draft; Cancel preserves the existing icon. Choose an image through
 the file picker, file drag-and-drop or focused paste area.
@@ -25,7 +28,9 @@ checks. Emoji and glyph selection belong to a later release.
 
 ## Source and compatibility
 
-The accepted source is `171295e9a76c39aecfce32fb34fe84c346fc1038`.
+The accepted source is `83fdc470348e2b186aea504892a59c7d7a4b7649`, including
+the accepted card grid from issue #35 / PR #36. It was synchronized into the
+release branch through an additive personally signed merge.
 Release preparation changes package versions and release documentation only;
 application source, SDK requirements and dependency resolutions are preserved.
 Both manifests identify version `0.2.0`.
@@ -35,6 +40,12 @@ enhancement depends on BB's heading DOM and `data-sidebar-project-id` marker.
 Other project pickers do not display these images.
 
 ## Acceptance boundary
+
+The original fresh/upgrade results below were captured at release head
+`286f4788393acc82c3a42523bb1974f416b99fe5`, using accepted source
+`171295e9a76c39aecfce32fb34fe84c346fc1038`. They remain evidence for that
+original source, not evidence for the newly accepted grid. Current grid checks
+are recorded separately.
 
 Build and SDK fake-host tests do not prove installation, upgrade, real Settings
 slots, sidebar integration or cross-client realtime. Fresh installation and

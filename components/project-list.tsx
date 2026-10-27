@@ -1,4 +1,4 @@
-import { useId, useRef } from "react";
+import { useId, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 import { filterProjects, type Project } from "../settings-state";
 
@@ -11,6 +11,12 @@ type Props = {
   iconUrl: (id: string, revision: number) => string;
 };
 
+function IconPreview({ src }: { src: string }) {
+  const [failed, setFailed] = useState(false);
+  return failed ? <span className="bb-project-icons-placeholder">Preview unavailable</span>
+    : <img src={src} alt="" loading="lazy" onError={() => setFailed(true)} />;
+}
+
 export function ProjectList({ projects, selected, query, onQuery, onSelect, iconUrl }: Props) {
   const id = useId();
   const list = useRef<HTMLUListElement>(null);
@@ -19,13 +25,26 @@ export function ProjectList({ projects, selected, query, onQuery, onSelect, icon
   projects.forEach((row) => names.set(row.name, (names.get(row.name) ?? 0) + 1));
   const buttons = () => Array.from(list.current?.querySelectorAll<HTMLButtonElement>("button") ?? []);
   const navigate = (event: KeyboardEvent<HTMLUListElement>) => {
-    if (event.altKey || event.ctrlKey || event.metaKey) return;
+    if (event.altKey || event.ctrlKey || event.metaKey || event.nativeEvent.isComposing) return;
     const items = buttons();
     const current = items.indexOf(event.target as HTMLButtonElement);
     if (current < 0) return;
-    const next = event.key === "ArrowDown" ? Math.min(current + 1, items.length - 1)
-      : event.key === "ArrowUp" ? Math.max(current - 1, 0)
-      : event.key === "Home" ? 0 : event.key === "End" ? items.length - 1 : -1;
+    let next = event.key === "Home" ? 0 : event.key === "End" ? items.length - 1 : -1;
+    if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) {
+      // Measure rendered rows so navigation follows the responsive grid, including a partial last row.
+      const rects = items.map((item) => item.getBoundingClientRect());
+      const origin = rects[current];
+      const horizontal = event.key === "ArrowLeft" || event.key === "ArrowRight";
+      const forward = event.key === "ArrowRight" || event.key === "ArrowDown";
+      const candidates = rects.map((rect, index) => ({ rect, index })).filter(({ rect }) => horizontal
+        ? Math.abs(rect.top - origin.top) < 1 && (forward ? rect.left > origin.left : rect.left < origin.left)
+        : forward ? rect.top > origin.top : rect.top < origin.top);
+      candidates.sort((a, b) => horizontal
+        ? Math.abs(a.rect.left - origin.left) - Math.abs(b.rect.left - origin.left)
+        : Math.abs(a.rect.top - origin.top) - Math.abs(b.rect.top - origin.top) ||
+          Math.abs(a.rect.left - origin.left) - Math.abs(b.rect.left - origin.left));
+      next = candidates[0]?.index ?? current;
+    }
     if (next < 0) return;
     event.preventDefault();
     items[next]?.focus();
@@ -41,19 +60,21 @@ export function ProjectList({ projects, selected, query, onQuery, onSelect, icon
           buttons()[0]?.focus();
         }
       }} />
-    <p id={`${id}-help`} className="bb-project-icons-help">Use arrow keys to move between projects; Enter or Space selects.</p>
+    <p id={`${id}-help`} className="bb-project-icons-help">Tab or arrow keys move between cards; Home/End reach the first/last. Enter or Space selects the editor below.</p>
     <p role="status" className="bb-project-icons-help">{rows.length} of {projects.length} projects</p>
     <ul id={`${id}-list`} ref={list} className="bb-project-icons-list" aria-label="Projects" onKeyDown={navigate}>
       {rows.map((row) => <li key={row.id}>
         <button type="button" className="bb-project-icons-project" aria-pressed={selected === row.id}
           onClick={() => onSelect(row.id)}>
-          <span className="bb-project-icons-thumbnail" aria-hidden="true">
-            {row.revision !== null ? <img src={iconUrl(row.id, row.revision)} alt="" loading="lazy" /> : <span>—</span>}
+          <span className="bb-project-icons-thumbnail">
+            {row.revision !== null ? <IconPreview key={iconUrl(row.id, row.revision)} src={iconUrl(row.id, row.revision)} />
+              : <span className="bb-project-icons-placeholder" aria-hidden="true">No image</span>}
           </span>
           <span className="bb-project-icons-identity">
             <span className="bb-project-icons-name">{row.name}</span>
             {(names.get(row.name) ?? 0) > 1 && <small>{row.id}</small>}
           </span>
+          <span className="bb-project-icons-assignment">{row.revision !== null ? "Icon assigned" : "No icon yet"}</span>
           <span className="bb-project-icons-action">{selected === row.id ? "Selected" : "Edit icon"}</span>
         </button>
       </li>)}
