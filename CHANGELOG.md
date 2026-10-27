@@ -31,6 +31,10 @@ with the explicit pre-1.0 policy in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ### Changed
 
+- Show all projects in an always-expanded responsive icon card grid, with clear
+  assigned/missing status, broken-preview fallback, wrapping names and spatial
+  keyboard navigation. The page scrolls naturally and the single editor remains
+  below the grid ([#35](https://github.com/fogrew/bb-plugin-project-icons/issues/35)).
 - Replaced the project icon settings dropdown with a searchable, keyboard-accessible
   project list, explicit loading/error/empty states, and stable selection during
   realtime updates ([#3](https://github.com/fogrew/bb-plugin-project-icons/issues/3)).
