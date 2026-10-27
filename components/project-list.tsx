@@ -24,12 +24,25 @@ export function ProjectList({ projects, selected, query, onQuery, onSelect, icon
   const rows = filterProjects(projects, query);
   const [opened, setOpened] = useState(false);
   const [activation, setActivation] = useState(0);
+  const [columns, setColumns] = useState(1);
   const panel = useRef<HTMLLIElement>(null);
   const outside = opened && !rows.some((row) => row.id === selected)
     ? projects.find((row) => row.id === selected) : undefined;
   const visible = outside ? [...rows, outside] : rows;
   useLayoutEffect(() => {
-    if (!activation || !panel.current) return;
+    const grid = list.current;
+    if (!grid) return;
+    // Read the resolved CSS tracks so embedded host resizing needs no duplicate breakpoints.
+    const measure = () => setColumns(getComputedStyle(grid).gridTemplateColumns.split(" ").length);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(grid);
+    return () => observer.disconnect();
+  }, []);
+  const selectedIndex = visible.findIndex((row) => row.id === selected);
+  const rowEnd = selectedIndex < 0 ? -1 : Math.min(visible.length, Math.ceil((selectedIndex + 1) / columns) * columns) - 1;
+  useLayoutEffect(() => {
+    if (!activation || !opened || !panel.current) return;
     const element = panel.current;
     let parent = element.parentElement;
     while (parent && !/(auto|scroll)/.test(getComputedStyle(parent).overflowY)) parent = parent.parentElement;
@@ -84,14 +97,18 @@ export function ProjectList({ projects, selected, query, onQuery, onSelect, icon
           buttons()[0]?.focus();
         }
       }} />
-    <p id={`${id}-help`} className="bb-project-icons-help bb-project-icons-keyboard-help">Tab or arrow keys move between project headers; Home/End reach the first/last. Enter or Space opens the editor after that header.</p>
+    <p id={`${id}-help`} className="bb-project-icons-help bb-project-icons-keyboard-help">Tab or arrow keys move between project headers; Home/End reach the first/last. Enter or Space opens or folds the editor after the selected row.</p>
     <p role="status" className="bb-project-icons-help">{rows.length} of {projects.length} projects</p>
     <ul id={`${id}-list`} ref={list} className="bb-project-icons-list" aria-label="Projects" onKeyDown={navigate}>
-      {[...visible.flatMap((row) => [<li key={row.id}>
+      {[...visible.flatMap((row, index) => [<li key={row.id}>
         {outside?.id === row.id && <p className="bb-project-icons-help">Selected project outside search results. Its editor stays open.</p>}
         <button type="button" className="bb-project-icons-project" aria-pressed={selected === row.id}
           aria-expanded={opened && selected === row.id} aria-controls={`${id}-editor`}
-          onClick={() => { onSelect(row.id); setOpened(true); setActivation((value) => value + 1); }}>
+          onClick={() => {
+            const unfold = row.id !== selected || !opened;
+            onSelect(row.id); setOpened(unfold);
+            if (unfold) setActivation((value) => value + 1);
+          }}>
           <span className="bb-project-icons-thumbnail">
             {row.revision !== null ? <IconPreview key={iconUrl(row.id, row.revision)} src={iconUrl(row.id, row.revision)} />
               : <span className="bb-project-icons-placeholder" aria-hidden="true">No image</span>}
@@ -101,11 +118,11 @@ export function ProjectList({ projects, selected, query, onQuery, onSelect, icon
             {(names.get(row.name) ?? 0) > 1 && <small>{row.id}</small>}
           </span>
           <span className="bb-project-icons-assignment">{row.revision !== null ? "Icon assigned" : "No icon yet"}</span>
-          <span className="bb-project-icons-action">{opened && selected === row.id ? "Editing" : "Edit icon"}</span>
+          <span className="bb-project-icons-action">{opened && selected === row.id ? "Fold editor" : "Edit icon"}</span>
           <svg className="bb-project-icons-chevron" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.5" /></svg>
         </button>
-      </li>, ...(selected === row.id ? [detail] : [])]),
-      ...(!visible.some((row) => row.id === selected) ? [detail] : [])]}
+      </li>, ...(index === rowEnd ? [detail] : [])]),
+      ...(rowEnd < 0 ? [detail] : [])]}
     </ul>
     {projects.length > 0 && rows.length === 0 && <div className="bb-project-icons-empty">
       <p role="status">No projects match your search.</p>
