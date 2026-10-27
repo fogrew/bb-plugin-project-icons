@@ -33,9 +33,10 @@ export function ImageInput({ busy, onFiles, inputRef, children }: Props) {
     onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) events.reset(); }}>
     <label htmlFor={id}>Choose image</label>
     <p id={`${id}-help`} className="bb-project-icons-help">
-      Choose or drop one PNG, JPEG, or WebP (up to 2 MB), or focus this area and paste an image.
-      A new image replaces the draft. Switching projects cancels it. Adjust, then Save.
-      Output: transparent 64 × 64 PNG.
+      Choose or drop one PNG, JPEG, or WebP (up to 2 MB).
+      <span className="bb-project-icons-extended-help"> You can also focus this area and paste an image.
+        A new image replaces the draft. Switching projects cancels it. Adjust, then Save.
+        Output: transparent 64 × 64 PNG.</span>
     </p>
     <input ref={inputRef} id={id} type="file" accept="image/png,image/jpeg,image/webp"
       aria-describedby={`${id}-help`} disabled={busy} onChange={(event) => {

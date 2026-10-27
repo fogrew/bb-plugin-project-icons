@@ -36,10 +36,10 @@ releasing. No historical 0.1.0 release date is asserted.
 
 ### Changed
 
-- Show all projects in an always-expanded responsive icon card grid, with clear
+- Show all projects in a responsive collection, with clear
   assigned/missing status, broken-preview fallback, wrapping names and spatial
-  keyboard navigation. The page scrolls naturally and the single editor remains
-  below the grid ([#35](https://github.com/fogrew/bb-plugin-project-icons/issues/35)).
+  keyboard navigation and natural page scrolling
+  ([#35](https://github.com/fogrew/bb-plugin-project-icons/issues/35)).
 - Replaced the project icon settings dropdown with a searchable, keyboard-accessible
   project list, explicit loading/error/empty states, and stable selection during
   realtime updates ([#3](https://github.com/fogrew/bb-plugin-project-icons/issues/3)).
@@ -56,6 +56,11 @@ releasing. No historical 0.1.0 release date is asserted.
 
 ### Fixed
 
+- Reveal one inline project icon editor after explicit header activation, with
+  compact mobile rows, visible expanded feedback and reduced-motion-aware viewport
+  reveal. Preserve drafts and Undo through filtering and resize; keep editor keys
+  separate from project navigation
+  ([#37](https://github.com/fogrew/bb-plugin-project-icons/issues/37)).
 - Reject malformed or truncated PNG assignments before saving while preserving
   existing icons, revision state and removal Undo offers
   ([#28](https://github.com/fogrew/bb-plugin-project-icons/issues/28)).

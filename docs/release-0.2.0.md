@@ -4,9 +4,11 @@ Status: pending owner release. No release date or tag is asserted.
 
 ## Release notes
 
-Project Icons shows all projects in an always-expanded, searchable responsive
-icon card grid. Cards show assigned/missing status, wrap long names, identify
-duplicate names by ID and retain the single editor below the grid. The image
+Project Icons shows projects in a searchable responsive collection, with compact
+mobile headers. Headers show assigned/missing status, wrap long names and identify
+duplicate names by ID. Explicit activation expands one editor immediately after
+that header and reveals its file chooser. Filtering and resize retain drafts
+and Undo, while editor keys remain separate from project navigation. The image
 editor provides Fit/Fill,
 zoom, position controls, an enlarged preview and a 20 px sidebar sample. Save
 applies the draft; Cancel preserves the existing icon. Choose an image through
@@ -28,8 +30,9 @@ checks. Emoji and glyph selection belong to a later release.
 
 ## Source and compatibility
 
-The accepted source is `83fdc470348e2b186aea504892a59c7d7a4b7649`, including
-the accepted card grid from issue #35 / PR #36. It was synchronized into the
+The accepted source is `48b31008e657dfa1e1f5005235091f28a56c0aed`, including
+the collection from #35 / PR #36 and compact inline editor from #37 / PR #38.
+It was synchronized into the
 release branch through an additive personally signed merge.
 Release preparation changes package versions and release documentation only;
 application source, SDK requirements and dependency resolutions are preserved.
@@ -44,8 +47,8 @@ Other project pickers do not display these images.
 The original fresh/upgrade results below were captured at release head
 `286f4788393acc82c3a42523bb1974f416b99fe5`, using accepted source
 `171295e9a76c39aecfce32fb34fe84c346fc1038`. They remain evidence for that
-original source, not evidence for the newly accepted grid. Current grid checks
-are recorded separately.
+original source, not evidence for subsequent collection/inline changes. Later
+checks are recorded separately with their tested source.
 
 Build and SDK fake-host tests do not prove installation, upgrade, real Settings
 slots, sidebar integration or cross-client realtime. Fresh installation and
@@ -122,7 +125,7 @@ headless installed Chrome with actual file-input selection. Final UI acceptance
 remains with the owner and coordinator; the two Windows host setup failures
 remain follow-up evidence.
 
-## Current card-grid verification
+## Earlier card-grid verification
 
 Issue #35 was accepted before this release synchronization. Targeted grid QA
 used signed release source `3fd11fe89b1aa996296b74e5f39afc4da281d706`, whose
@@ -154,7 +157,7 @@ both plus the exact 283 saved PNG bytes retrieved over HTTP. No manual refresh
 was used for the second context. Search/no-match/clear and keyboard selection
 also passed. The native sidebar heading gap and other limits above remain.
 
-Current grid artifacts, exact launch drivers, source/data provenance and
+These earlier grid artifacts, exact launch drivers, source/data provenance and
 screenshots are separate under ignored `dist/release-qa/grid`; original
 fresh/upgrade artifacts retain their original source attribution.
 Complementary narrow top/bottom captures confirmed the last card is reachable
