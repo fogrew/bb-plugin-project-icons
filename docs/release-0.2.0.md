@@ -1,6 +1,8 @@
-# v0.2.0 release preparation
+# v0.2.0 release — 2026-10-27
 
-Status: pending owner release. No release date or tag is asserted.
+Status: owner-authorized release v0.2.0, dated 2026-10-27.
+Release integration, signed tagging and publication are coordinated separately
+by the root coordinator; this document records the release scope and evidence.
 
 ## Release notes
 
@@ -124,9 +126,9 @@ and idle forks require an existing provider session. No supported inert first
 thread path was established, and no agent sessions were spawned. Native
 operating-system file dialogs/clipboard, browser drag/drop, other browsers,
 remote devices and other platforms remain untested. The browser checks used
-headless installed Chrome with actual file-input selection. Final UI acceptance
-remains with the owner and coordinator; the two Windows host setup failures
-remain follow-up evidence.
+headless installed Chrome with actual file-input selection. The owner authorized
+this release with these verification limits recorded; the two Windows host setup
+failures remain follow-up evidence.
 
 ## Earlier card-grid verification
 
@@ -247,6 +249,8 @@ Both successful runs closed their owned browser/daemon/server trees; ports
 edited or reloaded by this worker. Native sidebar and the other recorded live
 gaps remain explicit; root owns any separately authorized installed-plugin update.
 
-Issue [#6](https://github.com/fogrew/bb-plugin-project-icons/issues/6) remains
-open. The owner controls release integration into `main`, the actual release
-date, the signed `v0.2.0` tag, publication and the subsequent return PR.
+The owner authorized release `0.2.0` dated 2026-10-27 with the known verification
+limits above. The root coordinator handles integration into `main`, the signed
+`v0.2.0` tag, publication and the subsequent return PR. Issue
+[#6](https://github.com/fogrew/bb-plugin-project-icons/issues/6) remains open
+through those release actions; this preparation worker performs none of them.

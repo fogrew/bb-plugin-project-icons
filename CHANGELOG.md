@@ -8,10 +8,9 @@ with the explicit pre-1.0 policy in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Unreleased
 
-## 0.2.0 (pending release)
+## 0.2.0 - 2026-10-27
 
-Release preparation only; the owner will record the actual release date when
-releasing. No historical 0.1.0 release date is asserted.
+No historical 0.1.0 release date is asserted.
 
 ### Added
 
