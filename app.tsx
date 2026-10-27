@@ -38,7 +38,7 @@ function Settings() {
     {!loading && !loadError && projects.length === 0 &&
       <p role="status">No projects yet. Create a project in BB to assign an icon.</p>}
     {projects.length > 0 && <ProjectList projects={projects} selected={selected}
-      query={query} onQuery={setQuery} onSelect={state.select} iconUrl={iconUrl} />}
+      query={query} onQuery={setQuery} onSelect={state.select} iconUrl={iconUrl}>
     {project && <fieldset className="bb-project-icons-editor">
       <legend>Icon for {project.name}</legend>
       <div className="bb-project-icons-preview">
@@ -49,6 +49,7 @@ function Settings() {
       <ImageEditor key={project.id} project={project} state={state} busy={busy} />
       <RemovalControls project={project} state={state} />
     </fieldset>}
+    </ProjectList>}
   </div>;
 }
 
