@@ -122,6 +122,45 @@ headless installed Chrome with actual file-input selection. Final UI acceptance
 remains with the owner and coordinator; the two Windows host setup failures
 remain follow-up evidence.
 
+## Current card-grid verification
+
+Issue #35 was accepted before this release synchronization. Targeted grid QA
+used signed release source `3fd11fe89b1aa996296b74e5f39afc4da281d706`, whose
+application/test/build files exactly match accepted develop
+`83fdc470348e2b186aea504892a59c7d7a4b7649`. The actual `npm run check` passed
+187 tests. The unchanged PNG validation matrix was not rerun separately.
+
+A new short owned temporary data directory hosted actual BB 0.47.1 server and
+daemon instances on checked loopback ports 48965/48966, with a new isolated host
+identity. Exact dataDir, host identity, server URL and listener assertions were
+repeated before mutations. The fixture used six real core-created projects,
+including assigned/missing icons, duplicate names with distinct valid IDs,
+and long spaced/unbroken names. The current plugin reached status `running`
+with its real frontend and Settings slot. No SDK/RPC or theme CSS mocks were used.
+
+Light/dark checks verified actual host class, computed background/foreground
+and theme tokens changed; browser preference alone was not counted as proof.
+Desktop 1440 px and narrow 375/320 px passed: all six cards stayed rendered,
+long names wrapped, component widths did not overflow and the grid itself had
+visible overflow with equal client/scroll heights. The host Settings page
+provides natural scrolling. Screenshots cover both schemes and all three widths;
+narrow captures use complementary viewport positions because an element capture
+alone is clipped by the host Settings viewport.
+
+Selection and away/back draft cancellation retained all six cards and exactly
+one editor. Real Save changed a missing card to assigned in two independent
+browser contexts. Remove cleared both thumbnails/statuses, and Undo restored
+both plus the exact 283 saved PNG bytes retrieved over HTTP. No manual refresh
+was used for the second context. Search/no-match/clear and keyboard selection
+also passed. The native sidebar heading gap and other limits above remain.
+
+Current grid artifacts, exact launch drivers, source/data provenance and
+screenshots are separate under ignored `dist/release-qa/grid`; original
+fresh/upgrade artifacts retain their original source attribution.
+Complementary narrow top/bottom captures confirmed the last card is reachable
+through the host page scroll in both schemes and widths. Both grid runs closed
+their owned browser/daemon/server trees; ports 48965/48966 were confirmed closed.
+
 Issue [#6](https://github.com/fogrew/bb-plugin-project-icons/issues/6) remains
 open. The owner controls release integration into `main`, the actual release
 date, the signed `v0.2.0` tag, publication and the subsequent return PR.
