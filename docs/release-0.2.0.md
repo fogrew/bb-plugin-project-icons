@@ -164,6 +164,43 @@ Complementary narrow top/bottom captures confirmed the last card is reachable
 through the host page scroll in both schemes and widths. Both grid runs closed
 their owned browser/daemon/server trees; ports 48965/48966 were confirmed closed.
 
+## Current compact inline verification
+
+After #37 / PR #38 acceptance, actual BB QA used signed release source
+`5b3f970033de1b00e13dcf172eb450856c6426ab`, whose application/test/build/SDK
+files exactly match accepted develop
+`48b31008e657dfa1e1f5005235091f28a56c0aed`. The actual `npm run check` passed
+187 tests. Earlier fresh/upgrade and grid results retain their original source
+attribution and are not relabeled as current inline evidence.
+
+The reviewed isolated setup used a new short owned data directory, actual
+BB 0.47.1 on Node 24, a new host identity and checked loopback ports 48967/48968.
+Child `BB_*` sanitization and exact dataDir/URL/host/listener guards were retained.
+Six core-created projects included assigned/missing, duplicate and long names.
+Onboarding was completed at desktop width before targeted mobile checks.
+
+At 375 and 320 px, the initial overview rendered six compact headers with no
+expanded editor. Header heights were 61–124 px; the collection was 538/559 px
+high. Activating the first, middle and last headers placed the single editor
+immediately after that header, with exactly one editor and file input. Its file
+chooser remained fully inside the 812 px viewport in all six cases; the largest
+measured bottom coordinate was 761 px.
+
+Native slider ArrowRight/Home/End, file-input Home/End, search Home/End and
+header Home/End/ArrowDown/Space behaved correctly without editor-key interception.
+The exact draft PNG and the same editor/panel/file nodes survived filtering,
+no-match/clear and resize through desktop/mobile widths. An actual RPC change
+updated both independent browser contexts through BB realtime while preserving
+the draft, focus and nodes. Recorded scrollBy calls stayed empty and all measured
+window/host scroll offsets stayed identical; no mock realtime signal was used.
+
+Nine source-tagged screenshots, exact drivers, result assertions and data/source
+provenance are retained separately under ignored `dist/release-qa/inline`.
+Screenshots were attached to the coordinator thread. The owned browser, daemon
+and server trees were closed and ports 48967/48968 confirmed closed. The user's
+running checkout/plugin was not modified or reloaded by this verification.
+The native sidebar heading and other previously recorded live gaps remain.
+
 Issue [#6](https://github.com/fogrew/bb-plugin-project-icons/issues/6) remains
 open. The owner controls release integration into `main`, the actual release
 date, the signed `v0.2.0` tag, publication and the subsequent return PR.
