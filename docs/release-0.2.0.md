@@ -204,6 +204,49 @@ and server trees were closed and ports 48967/48968 confirmed closed. The user's
 running checkout/plugin was not modified or reloaded by this verification.
 The native sidebar heading and other previously recorded live gaps remain.
 
+## Current desktop-row and folding verification
+
+After #39 / PR #40 acceptance, actual BB QA used personally signed source
+`f929aa1bd0cc411876358618f9791b34551f45e6`, whose application/test/build/SDK
+files match accepted develop `1288d88079e20426f2cbdeb81baf369bf0fd7c77`.
+Actual local `npm run check` passed 187 tests. Earlier evidence above retains
+its original source attribution; the unchanged PNG matrix was not rerun separately.
+
+The same reviewed isolation design used a new short owned data directory,
+actual BB 0.47.1/Node 24, a new host identity and checked loopback ports
+48969/48970, with stripped child `BB_*` environment and exact path/URL/identity
+guards. Seven core-created projects covered assigned/missing, duplicate and long
+names. Native host styles resolved three desktop columns at 1440 and 1920 px.
+Eight first/middle/non-last/last selections preserved all row memberships and
+placed the panel after the complete selected row, including the partial final row.
+
+Pointer, Enter and Space fold/reopen cycles preserved the exact draft PNG and
+the same editor/panel/file-input nodes. Folding issued no mutating plugin RPC
+and no scrollBy request. A real removal's absolute Undo deadline remained
+identical through folding/reopening; Undo then restored the exact 303 HTTP PNG
+bytes. At 375/320 px, first/middle/last activations retained mobile adjacency,
+one editor/input and a file chooser fully inside the viewport.
+
+A supplemental run used a non-last selected card while resizing through
+desktop/mobile widths. The panel's row-end position changed correctly between
+headers 2 and 1 without replacing DOM nodes or changing the draft. Search and
+clear retained that identity. Fresh post-navigation scroll spies plus an actual
+RPC/realtime change verified two-context updates without scroll requests,
+scroll-offset changes, focus theft or draft/node replacement.
+
+One additional ordinary isolated fixture project made the final desktop row
+contain two cards. Selecting its first member kept its sibling in that row and
+placed the panel after the second member. Adding this setup fixture after mount
+required refreshing only the isolated Settings page; the first setup timeout is
+retained separately, and no product code was changed to bypass it.
+
+Seventeen current screenshots, exact launch drivers, result assertions and
+source/data/hash provenance are retained under ignored `dist/release-qa/rowfold`.
+Both successful runs closed their owned browser/daemon/server trees; ports
+48969/48970 were confirmed closed. The user's running checkout/plugin was not
+edited or reloaded by this worker. Native sidebar and the other recorded live
+gaps remain explicit; root owns any separately authorized installed-plugin update.
+
 Issue [#6](https://github.com/fogrew/bb-plugin-project-icons/issues/6) remains
 open. The owner controls release integration into `main`, the actual release
 date, the signed `v0.2.0` tag, publication and the subsequent return PR.
