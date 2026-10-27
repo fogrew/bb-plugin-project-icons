@@ -1,82 +1,55 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { definePluginApp, useRealtime, useRpc } from "@get-bb/plugin-sdk/app";
 import type { rpcContract } from "./server";
+import { ProjectList } from "./components/project-list";
+import { createSettingsState } from "./settings-state";
+import { ImageEditor } from "./components/image-editor";
+import { RemovalControls } from "./components/removal-controls";
 import "./app.css";
 
-type Project = { id: string; name: string; revision: number | null };
 const base = "/api/v1/plugins/project-icons/http";
 const iconUrl = (id: string, revision: number) => `${base}/icon?projectId=${encodeURIComponent(id)}&v=${revision}`;
 
-async function normalize(file: File): Promise<string> {
-  if (!["image/png", "image/jpeg", "image/webp"].includes(file.type) || file.size > 2_000_000) throw new Error("Choose a PNG, JPEG, or WebP image under 2 MB.");
-  const bitmap = await createImageBitmap(file);
-  try {
-    const canvas = document.createElement("canvas");
-    canvas.width = canvas.height = 64;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) throw new Error("Canvas is unavailable.");
-    const scale = Math.min(64 / bitmap.width, 64 / bitmap.height);
-    const width = bitmap.width * scale;
-    const height = bitmap.height * scale;
-    ctx.drawImage(bitmap, (64 - width) / 2, (64 - height) / 2, width, height);
-    const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob((value) => value ? resolve(value) : reject(new Error("Could not create PNG")), "image/png"));
-    if (blob.size > 65536) throw new Error("Processed icon is too large.");
-    const bytes = new Uint8Array(await blob.arrayBuffer());
-    let binary = "";
-    for (const byte of bytes) binary += String.fromCharCode(byte);
-    return btoa(binary);
-  } finally {
-    bitmap.close();
-  }
-}
-
 function Settings() {
   const rpc = useRpc<typeof rpcContract>();
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [selected, setSelected] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [message, setMessage] = useState("");
-  const refresh = () => { void rpc.call("list").then(({ projects: rows }) => {
-    setProjects(rows);
-    setSelected((current) => current && rows.some((row) => row.id === current) ? current : rows[0]?.id ?? "");
-  }, (cause) => setError(String(cause))); };
-  useEffect(refresh, [rpc]);
-  useRealtime("changed", refresh);
+  const state = useMemo(() => createSettingsState({
+    list: () => rpc.call("list"),
+    save: (input) => rpc.call("save", input),
+    remove: (input) => rpc.call("removeWithUndo", input),
+    restore: (input) => rpc.call("restore", input),
+  }, () => window.dispatchEvent(new Event("bb-project-icons-changed"))), [rpc]);
+  const { projects, selected, loading, refreshing, loadError, operation } =
+    useSyncExternalStore(state.subscribe, state.getSnapshot);
+  const [query, setQuery] = useState("");
+  useEffect(() => {
+    void state.refresh();
+    return state.cancel;
+  }, [state]);
+  useRealtime("changed", () => { void state.refresh(); });
   const project = projects.find((row) => row.id === selected);
-  const changed = () => { refresh(); window.dispatchEvent(new Event("bb-project-icons-changed")); };
-  const upload = async (file?: File) => {
-    if (!file || !selected || busy) return;
-    setBusy(true); setError(""); setMessage("");
-    try {
-      await rpc.call("save", { projectId: selected, base64: await normalize(file) });
-      changed(); setMessage("Icon saved.");
-    } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
-    finally { setBusy(false); }
-  };
-  const remove = async () => {
-    if (!selected || busy) return;
-    setBusy(true); setError(""); setMessage("");
-    try {
-      await rpc.call("remove", { projectId: selected });
-      changed(); setMessage("Icon removed.");
-    } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
-    finally { setBusy(false); }
-  };
+  const busy = operation !== null;
   return <div className="bb-project-icons-settings">
-    <label htmlFor="bb-project-icons-project">Project</label>
-    <select id="bb-project-icons-project" value={selected} onChange={(event) => setSelected(event.target.value)}>
-      {projects.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
-    </select>
-    <div className="bb-project-icons-preview">
-      {project?.revision ? <img src={iconUrl(project.id, project.revision)} alt="" /> : <span aria-hidden="true">No icon</span>}
-      <span>{project?.name ?? "Select a project"}</span>
-    </div>
-    <label htmlFor="bb-project-icons-file">Upload icon (PNG, JPEG, or WebP; up to 2 MB)</label>
-    <input id="bb-project-icons-file" type="file" accept="image/png,image/jpeg,image/webp" disabled={!selected || busy} onChange={(event) => { void upload(event.target.files?.[0]); event.target.value = ""; }} />
-    <button type="button" disabled={!project?.revision || busy} onClick={() => void remove()}>Remove icon</button>
-    {error && <p role="alert">{error}</p>}
-    {message && <p role="status">{message}</p>}
+    {loading && <p role="status">Loading projects…</p>}
+    {loadError && <div className="bb-project-icons-error">
+      <p role="alert">{loadError}</p>
+      <button type="button" disabled={refreshing} onClick={() => void state.refresh()}>Retry</button>
+    </div>}
+    {!loading && refreshing && <p role="status" className="bb-project-icons-help">Updating projects…</p>}
+    {!loading && !loadError && projects.length === 0 &&
+      <p role="status">No projects yet. Create a project in BB to assign an icon.</p>}
+    {projects.length > 0 && <ProjectList projects={projects} selected={selected}
+      query={query} onQuery={setQuery} onSelect={state.select} iconUrl={iconUrl}>
+    {project && <fieldset className="bb-project-icons-editor">
+      <legend>Icon for {project.name}</legend>
+      <div className="bb-project-icons-preview">
+        {project.revision !== null ? <img src={iconUrl(project.id, project.revision)} alt="Current project icon" /> : <span>No icon assigned</span>}
+        {projects.some((row) => row.id !== project.id && row.name === project.name) &&
+          <small className="bb-project-icons-id">{project.id}</small>}
+      </div>
+      <ImageEditor key={project.id} project={project} state={state} busy={busy} />
+      <RemovalControls project={project} state={state} />
+    </fieldset>}
+    </ProjectList>}
   </div>;
 }
 
