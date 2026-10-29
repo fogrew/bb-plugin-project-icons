@@ -68,3 +68,12 @@
 .bb-project-icons-emojis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; max-height: 256px; overflow-y: auto; padding: 4px; }
 .bb-project-icons-emojis button { justify-self: stretch; min-height: 44px; padding: 4px; font: 24px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif; }
 .bb-project-icons-emojis [aria-pressed=true] { background: var(--muted); outline: 2px solid var(--ring, var(--foreground)); }
+.bb-project-icons-png-preview { min-width: 0; }
+.bb-project-icons-preview-trigger { display: inline-grid; place-items: center; min-width: 44px; min-height: 44px; padding: 4px; cursor: zoom-in; }
+.bb-project-icons-preview-trigger:focus-visible { outline: 2px solid var(--ring, currentColor); outline-offset: 2px; }
+.bb-project-icons-viewer { box-sizing: border-box; width: min(32rem, calc(100vw - 2rem)); max-width: calc(100vw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 2rem); max-height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 2rem); margin: auto; padding: 16px; overflow: auto; border: 1px solid var(--border, GrayText); border-radius: 8px; color: var(--foreground, CanvasText); background: var(--background, Canvas); }
+.bb-project-icons-viewer::backdrop { background: rgb(0 0 0 / 65%); }
+.bb-project-icons-viewer-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 16px; }
+.bb-project-icons-viewer-toolbar h2 { margin: 0; font: inherit; overflow-wrap: anywhere; }
+.bb-project-icons-viewer-toolbar button { min-width: 44px; min-height: 44px; }
+.bb-project-icons-viewer .bb-project-icons-viewer-image { display: block; width: 100%; height: auto; aspect-ratio: 1; object-fit: contain; background: conic-gradient(#ccc 25%, #fff 0 50%, #ccc 0 75%, #fff 0) 0 0 / 16px 16px; }

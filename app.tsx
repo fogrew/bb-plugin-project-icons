@@ -4,6 +4,7 @@ import type { rpcContract } from "./server";
 import { ProjectList } from "./components/project-list";
 import { createSettingsState } from "./settings-state";
 import { IconPicker } from "./components/icon-picker";
+import { PngPreview } from "./components/icon-preview";
 import { RemovalControls } from "./components/removal-controls";
 import "./app.css";
 
@@ -42,7 +43,7 @@ function Settings() {
     {project && <fieldset className="bb-project-icons-editor">
       <legend>Icon for {project.name}</legend>
       <div className="bb-project-icons-preview">
-        {project.revision !== null ? <img src={iconUrl(project.id, project.revision)} alt="Current project icon" /> : <span>No icon assigned</span>}
+        {project.revision !== null ? <PngPreview url={iconUrl(project.id, project.revision)} label="Current project icon" /> : <span>No icon assigned</span>}
         {projects.some((row) => row.id !== project.id && row.name === project.name) &&
           <small className="bb-project-icons-id">{project.id}</small>}
       </div>
