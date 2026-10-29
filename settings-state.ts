@@ -100,7 +100,9 @@ export function createSettingsState(api: Api, changed: () => void) {
         const result = await api.remove({ projectId });
         if (generation === lifetime && version === selectionVersion && result?.undo) offerUndo({ projectId, ...result.undo });
       }
-      if (generation !== lifetime) return "skipped";
+      // A confirmed RPC succeeded even when its editor lifetime has ended.
+      // Suppress stale UI effects; callers separately guard draft ownership.
+      if (generation !== lifetime) return "success";
       changed();
       void refresh();
       if (generation === lifetime && version === selectionVersion) update({
