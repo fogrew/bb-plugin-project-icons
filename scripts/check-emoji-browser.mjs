@@ -1,14 +1,13 @@
 // Finite component check, without a BB install or new dependencies.
 // Usage: node scripts/check-emoji-browser.mjs <esbuild-package-dir> <existing-node_modules> <chrome-executable> [light|dark]
-// Uses an isolated temporary Chrome profile and removes it on exit.
+// Uses temporary Playwright tooling, closes Chrome and removes its fixture on exit.
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve, join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { spawn } from "node:child_process";
-import { once } from "node:events";
+
 
 const [esbuildDir, modulesDir, chromePath, theme = "light"] = process.argv.slice(2);
 if (!esbuildDir || !modulesDir || !chromePath) throw new Error("Supply existing esbuild package, node_modules and Chrome executable paths.");
@@ -160,21 +159,22 @@ try {
   const html = '<!doctype html><meta charset="utf-8"><style>:root{'+colors+'}body{font-family:system-ui;margin:20px;color:var(--foreground);background:var(--background)}</style><style>'+css+'</style><div id="app" class="bb-project-icons-settings" style="max-width:'+width+'"></div><script>'+bundle.outputFiles[0].text+'</script><script>('+browserChecks.toString()+')().catch(error=>{document.body.dataset.testError=btoa(String(error.stack))})</script>';
   const page=join(directory,"index.html");await writeFile(page,html);
   const screenshot=resolve("dist/emoji-component-test-"+theme+".png");
-  chrome=spawn(chromePath,["--headless=new","--no-first-run","--no-default-browser-check","--disable-gpu",
-    "--user-data-dir="+join(directory,"profile"),"--dump-dom","--timeout=30000","--virtual-time-budget=15000",
-    "--window-size="+(theme === "dark" ? "400,1000" : "600,1000"),"--screenshot="+screenshot,pathToFileURL(page).href],{windowsHide:true,stdio:["ignore","pipe","pipe"]});
-  let output="", errors=""; chrome.stdout.on("data",chunk=>{output+=chunk;});chrome.stderr.on("data",chunk=>{errors+=chunk;});
-  const timer=setTimeout(()=>chrome.kill(),45000);
-  const [code]=await once(chrome,"exit");clearTimeout(timer);
-  assert.equal(code,0,errors);
-  const failure=output.match(/data-test-error="([^"]+)"/);
-  if(failure)throw Error(Buffer.from(failure[1],"base64").toString());
-  const result=output.match(/data-test-result="([^"]+)"/);
-  assert.ok(result,"Browser did not finish component checks: "+errors);
-  const checks=JSON.parse(Buffer.from(result[1],"base64").toString());
+  const { chromium } = require(resolve(modulesDir, "playwright-core"));
+  chrome = await chromium.launch({executablePath: chromePath, headless:true});
+  const tab = await chrome.newPage({viewport:{width:theme === "dark" ? 400 : 600,height:1000}});
+  const errors = [];
+  tab.on("pageerror", error => errors.push(error.message));
+  await tab.goto(pathToFileURL(page).href);
+  await tab.waitForFunction(() => document.body.dataset.testResult || document.body.dataset.testError, {timeout:30000});
+  const failure = await tab.evaluate(() => document.body.dataset.testError);
+  if (failure) throw Error(Buffer.from(failure,"base64").toString());
+  assert.deepEqual(errors, []);
+  await tab.screenshot({path:screenshot});
+  const encoded = await tab.evaluate(() => document.body.dataset.testResult);
+  const checks=JSON.parse(Buffer.from(encoded,"base64").toString());
   for(const name of checks)console.log("PASS "+name);
   console.log(checks.length+" component checks passed; screenshot: "+screenshot);
 } finally {
-  if(chrome?.exitCode === null)chrome.kill();
+  await chrome?.close();
   await rm(directory,{recursive:true,force:true,maxRetries:5,retryDelay:200});
 }
