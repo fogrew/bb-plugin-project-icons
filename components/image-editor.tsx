@@ -5,9 +5,9 @@ import type { createSettingsState, Project } from "../settings-state";
 import { createDraft } from "../lib/image-draft";
 import { clampCrop, decodeImage, defaultCrop, drawIcon, encodeIcon, offsetBounds, type Crop } from "../lib/image-processing";
 
-type Props = { project: Project; state: ReturnType<typeof createSettingsState>; busy: boolean };
+export type EditorProps = { project: Project; state: ReturnType<typeof createSettingsState>; busy: boolean; registerCancel?: (cancel: () => void) => () => void };
 
-export function ImageEditor({ project, state, busy }: Props) {
+export function ImageEditor({ project, state, busy, registerCancel }: EditorProps) {
   const controlId = useId();
   const draft = useMemo(() => createDraft<ImageBitmap>(project.id, () => state.getSnapshot().selected), [project.id, state]);
   const [crop, setCrop] = useState<Crop>(defaultCrop);
@@ -25,12 +25,13 @@ export function ImageEditor({ project, state, busy }: Props) {
     setCrop(defaultCrop);
   };
   useEffect(() => {
+    const unregisterCancel = registerCancel?.(cancel);
     // Subscribe directly so even an away-and-back selection in one React batch cancels the draft.
     const unsubscribe = state.subscribe(() => {
       if (state.getSnapshot().selected !== project.id) cancel();
     });
-    return () => { unsubscribe(); request.current += 1; draft.cancel(); };
-  }, [state, project.id, draft]);
+    return () => { unregisterCancel?.(); unsubscribe(); request.current += 1; draft.cancel(); };
+  }, [state, project.id, draft, registerCancel]);
 
   const render = (next: Crop) => {
     const image = draft.current();
@@ -71,14 +72,14 @@ export function ImageEditor({ project, state, busy }: Props) {
     const image = draft.current();
     if (!image || !preview || busy || state.getSnapshot().selected !== project.id) return;
     const version = request.current;
-    await state.mutate("save", async () => {
+    const result = await state.mutate("save", async () => {
       const canvas = document.createElement("canvas");
       drawIcon(canvas, image, crop);
       const base64 = await encodeIcon(canvas);
       if (version !== request.current || draft.current() !== image) throw new Error("Draft cancelled.");
       return base64;
     }, project.id);
-    if (version === request.current && state.getSnapshot().notice?.kind === "success") cancel();
+    if (version === request.current && result === "success") cancel();
   };
   const image = draft.current();
   const bounds = image ? offsetBounds(image.width, image.height, crop) : { x: 0, y: 0 };

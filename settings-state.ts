@@ -82,8 +82,8 @@ export function createSettingsState(api: Api, changed: () => void) {
       });
     }
   };
-  const mutate = async (kind: "save" | "remove", prepare?: () => Promise<string>, ownerId?: string) => {
-    if (!snapshot.selected || snapshot.operation || (ownerId !== undefined && ownerId !== snapshot.selected)) return;
+  const mutate = async (kind: "save" | "remove", prepare?: () => Promise<string>, ownerId?: string): Promise<"success" | "failed" | "skipped"> => {
+    if (!snapshot.selected || snapshot.operation || (ownerId !== undefined && ownerId !== snapshot.selected)) return "skipped";
     const projectId = snapshot.selected;
     const version = selectionVersion;
     const generation = lifetime;
@@ -94,25 +94,29 @@ export function createSettingsState(api: Api, changed: () => void) {
       if (kind === "save") {
         if (!prepare) throw new Error("Missing image");
         const base64 = await prepare();
-        if (generation !== lifetime) return;
+        if (generation !== lifetime) return "skipped";
         await api.save({ projectId, base64 });
       } else {
         const result = await api.remove({ projectId });
         if (generation === lifetime && version === selectionVersion && result?.undo) offerUndo({ projectId, ...result.undo });
       }
-      if (generation !== lifetime) return;
+      // A confirmed RPC succeeded even when its editor lifetime has ended.
+      // Suppress stale UI effects; callers separately guard draft ownership.
+      if (generation !== lifetime) return "success";
       changed();
       void refresh();
       if (generation === lifetime && version === selectionVersion) update({
         notice: { kind: "success", text: kind === "save" ? "Icon saved." : "Icon removed." },
       });
+      return "success";
     } catch {
       if (generation === lifetime && kind === "remove") void refresh();
       if (generation === lifetime && version === selectionVersion) update({
         notice: { kind: "error", text: kind === "save"
-          ? "Could not upload icon. Choose a PNG, JPEG, or WebP image under 2 MB and try again."
+          ? "Could not save icon. Check the draft and try again."
           : "Could not remove icon. Try again." },
       });
+      return "failed";
     } finally {
       if (generation === lifetime) update({ operation: null });
     }
