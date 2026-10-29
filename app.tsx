@@ -3,7 +3,7 @@ import { definePluginApp, useRealtime, useRpc } from "@get-bb/plugin-sdk/app";
 import type { rpcContract } from "./server";
 import { ProjectList } from "./components/project-list";
 import { createSettingsState } from "./settings-state";
-import { ImageEditor } from "./components/image-editor";
+import { IconPicker } from "./components/icon-picker";
 import { RemovalControls } from "./components/removal-controls";
 import "./app.css";
 
@@ -46,7 +46,7 @@ function Settings() {
         {projects.some((row) => row.id !== project.id && row.name === project.name) &&
           <small className="bb-project-icons-id">{project.id}</small>}
       </div>
-      <ImageEditor key={project.id} project={project} state={state} busy={busy} />
+      <IconPicker key={project.id} project={project} state={state} busy={busy} />
       <RemovalControls project={project} state={state} />
     </fieldset>}
     </ProjectList>}

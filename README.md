@@ -32,6 +32,16 @@ BB stores icons in the plugin's server-side storage and serves them through same
 
 For project headings with an image, Project Icons hides the Project Colors dot to avoid showing two icons. Project Colors remains installed and controls other projects as before.
 
+Choose **Emoji** to browse 72 local Unicode Emoji 15.1 choices. Search English names or an exact emoji; skin tone variants are separate named choices. Tab enters each group, arrows move between choices, Home/End reach the first/last choice, and Enter or Space selects. Escape cancels the emoji draft and returns focus to search. Image/Emoji tabs support Left/Right and Home/End.
+
+Emoji use your browser's locally installed emoji fonts. Before saving, appearance and sequence support depend on the device, browser and fonts: flags, skin tones, keycaps or ZWJ combinations may show separate symbols or missing glyphs. The enlarged and actual 20 px previews show the exact transparent PNG bytes sent on Save, rather than a second text rendering. Check these previews before saving. Clients of the same server receive that saved appearance; fonts and artwork are never downloaded or bundled. The small catalog and its license are documented in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+Switching source discards its draft; switching projects, Cancel and closing the editor invalidate pending rendering. Failed saves keep the draft for retry. Cancellation cannot roll back a save RPC already sent. Resetting a draft leaves the saved assignment intact; **Remove icon** remains the separate assignment action.
+
+Recent emoji contain at most 12 known catalog IDs, recorded only after a confirmed successful Save of the still-active draft. **Clear recents** clears this preference. History is local to this browser profile, origin and plugin, shared across projects; it does not sync to another client and is not isolated between accounts sharing that profile/origin. It contains no project IDs, search queries, images or timestamps. Blocked storage falls back to memory while the chooser is mounted.
+
+All sources retain normalized PNG storage. The accepted server validates PNG structure, CRC and decoded pixels independently; see [PNG validation](docs/png-validation.md). Existing assignments remain compatible.
+
 ## Compatibility
 
 BB has no native project image field. This plugin enhances the native thread-list project headings through a content script using BB 0.46's `data-sidebar-project-id` and heading DOM. A future BB sidebar markup change may require a plugin update. Other project pickers do not show these images.

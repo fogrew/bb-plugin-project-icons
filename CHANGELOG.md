@@ -8,6 +8,10 @@ with the explicit pre-1.0 policy in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Unreleased
 
+### Added
+
+- Search a local licensed emoji catalog and keep bounded client-local recent choices. Preview exact transparent PNG snapshots before saving, with device-dependent pre-save rendering.
+
 ## 0.2.0 - 2026-10-27
 
 No historical 0.1.0 release date is asserted.

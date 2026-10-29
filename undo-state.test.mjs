@@ -139,11 +139,21 @@ test("cancel suppresses late mutation feedback, refresh and timers", async t => 
   const removal = s.state.mutate("remove");
   s.state.cancel();
   result.resolve({ removed: true, undo: s.offer });
-  await removal;
+    assert.equal(await removal, "success");
   assert.equal(s.state.getSnapshot().undo, null);
   assert.equal(s.state.getSnapshot().notice, null);
   assert.equal(reads, 1);
   assert.deepEqual(s.calls, []);
+    const saved = deferred();
+    const started = deferred();
+    const saveState = await setup(t, { save: async () => { started.resolve(); return saved.promise; } });
+    const saving = saveState.state.mutate("save", async () => "png", a.id);
+    await started.promise;
+    saveState.state.cancel();
+    saved.resolve();
+    assert.equal(await saving, "success");
+    assert.equal(saveState.state.getSnapshot().notice, null);
+    assert.deepEqual(saveState.calls, []);
 });
 
 for (const reject of [false, true]) {
@@ -181,7 +191,7 @@ test("cancelled image preparation cannot submit a new server mutation", async t 
   const image = deferred();
   const s = await setup(t);
   const saving = s.state.mutate("save", () => image.promise, a.id);
-  s.state.cancel(); image.resolve("png"); await saving;
+    s.state.cancel(); image.resolve("png"); assert.equal(await saving, "skipped");
   assert.deepEqual(s.calls, []);
 });
 

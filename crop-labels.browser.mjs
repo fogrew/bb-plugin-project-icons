@@ -101,7 +101,7 @@ try {
     HTMLCanvasElement.prototype.toBlob = function (callback) { callback(null); };
   });
   await editor.getByRole("button", { name: "Save", exact: true }).click();
-  await page.getByRole("status").filter({ hasText: "Could not upload icon" }).waitFor();
+  await page.getByRole("status").filter({ hasText: "Could not save icon" }).waitFor();
   assert.equal(await editor.getByAltText("Enlarged draft icon").getAttribute("src"), draft);
   assert.equal(await editor.getByRole("button", { name: "Save", exact: true }).isEnabled(), true);
   assert.equal(await node.evaluate((input) => input.isConnected), true);
