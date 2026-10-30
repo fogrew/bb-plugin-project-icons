@@ -51,4 +51,3 @@ screen-reader announcements, Safari/Firefox, or OS/browser zoom. The installed
 plugin, its checkout and BB configuration were not changed. Glyph and initials
 sources are unavailable in this branch; they can later use the shared PNG
 component without importing sibling feature code.
-
