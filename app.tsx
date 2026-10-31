@@ -4,6 +4,7 @@ import type { rpcContract } from "./server";
 import { ProjectList } from "./components/project-list";
 import { createSettingsState } from "./settings-state";
 import { IconPicker } from "./components/icon-picker";
+import { RemovalControls } from "./components/removal-controls";
 import "./app.css";
 
 const base = "/api/v1/plugins/project-icons/http";
@@ -14,9 +15,10 @@ function Settings() {
   const state = useMemo(() => createSettingsState({
     list: () => rpc.call("list"),
     save: (input) => rpc.call("save", input),
-    remove: (input) => rpc.call("remove", input),
+    remove: (input) => rpc.call("removeWithUndo", input),
+    restore: (input) => rpc.call("restore", input),
   }, () => window.dispatchEvent(new Event("bb-project-icons-changed"))), [rpc]);
-  const { projects, selected, loading, refreshing, loadError, operation, notice } =
+  const { projects, selected, loading, refreshing, loadError, operation } =
     useSyncExternalStore(state.subscribe, state.getSnapshot);
   const [query, setQuery] = useState("");
   useEffect(() => {
@@ -36,7 +38,7 @@ function Settings() {
     {!loading && !loadError && projects.length === 0 &&
       <p role="status">No projects yet. Create a project in BB to assign an icon.</p>}
     {projects.length > 0 && <ProjectList projects={projects} selected={selected}
-      query={query} onQuery={setQuery} onSelect={state.select} iconUrl={iconUrl} />}
+      query={query} onQuery={setQuery} onSelect={state.select} iconUrl={iconUrl}>
     {project && <fieldset className="bb-project-icons-editor">
       <legend>Icon for {project.name}</legend>
       <div className="bb-project-icons-preview">
@@ -45,15 +47,9 @@ function Settings() {
           <small className="bb-project-icons-id">{project.id}</small>}
       </div>
       <IconPicker key={project.id} project={project} state={state} busy={busy} />
-      <button type="button" disabled={project.revision === null || busy}
-        onClick={() => void state.mutate("remove")}>Remove icon</button>
-      {operation?.projectId === selected && <p role="status">
-        {operation.kind === "save" ? "Uploading icon…" : "Removing icon…"}
-      </p>}
-      {operation && operation.projectId !== selected &&
-        <p role="status">Finishing an icon change for another project…</p>}
-      {notice && <p role={notice.kind === "error" ? "alert" : "status"}>{notice.text}</p>}
+      <RemovalControls project={project} state={state} />
     </fieldset>}
+    </ProjectList>}
   </div>;
 }
 
@@ -125,7 +121,7 @@ function mountIcons(signal: AbortSignal): () => void {
 }
 
 export default definePluginApp((app) => {
-  app.slots.settingsSection({ id: "icons", title: "Project icons", description: "Choose an image, emoji, glyph or initials for each project in the native sidebar.", component: Settings });
+  app.slots.settingsSection({ id: "icons", title: "Project icons", description: "Choose an image for each project in the native sidebar.", component: Settings });
   app.slots.experimental_appOverlay({ id: "sidebar-updates", component: SidebarUpdates });
   app.contentScripts.register({ id: "sidebar-icons", mount: ({ signal }) => mountIcons(signal) });
 });

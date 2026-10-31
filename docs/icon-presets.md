@@ -109,66 +109,31 @@ an in-memory fallback; malformed/oversized/unknown values cannot escape the
 known-ID bound. Preferences are browser-profile/origin/plugin local, shared
 across projects, neither account-isolated nor synced across clients.
 
-## Exact sibling integration seams
+## Accepted integration base
 
-No #5, #24 or #28 implementation was copied or merged. This branch inherits
-#7/PR29, #4/PR23 and #3/PR21 through its exact reviewed base.
-#6 and #28 remain integration/release gates; #6 also retains its other native
-dependency edges.
+This branch is synchronized by an additive signed merge with accepted develop
+1c902471edfdc9247fcce3e4647e54bd04a229af (PR43).
+Accepted server, strict PNG validation/highwater, settings-state Undo/outcome
+handling, ImageInput, ProjectList mobile row folding and removal controls are
+retained from that base. ImageEditor combines accepted input ownership and
+single-file guards with the four-source exact PNG draft and stable crop controls.
+The glyph catalog, palette, Unicode segmentation and color recents are preserved.
+The shared snapshot lifecycle replaces duplicated Image/Emoji draft feedback;
+confirmed Save still uses the accepted explicit outcome contract.
 
-- **#5 / PR26**, reviewed `055234eb0cf2538d44ad165a69d877dab8be3dc5`:
-  its `components/image-editor.tsx` hunks add `ImageInput`/`singleImageFile`
-  imports at old lines 1–6, change `upload(file)` to `upload(files)` and add
-  owner/busy/single-file guards at old line 46, replace the native input at old
-  lines 73–85, and wrap the draft controls in `ImageInput`. Here the corresponding
-  seams are `ImageEditor.upload(file)`, the native `input` block and
-  `DraftOutput`. At integration, validate one file before clearing the existing
-  draft, keep the input ref/focus/reset semantics and wrap the shared output in
-  the input surface while retaining `usePngDraft` and bitmap disposal. Its drag,
-  paste and URL paths need fresh combined browser tests.
-- **#24 / PR27**, reviewed `00add288be354d73a6108547d5156fc549ff98c8`:
-  `settings-state.ts` hunks at old lines 1–18 add Undo/restore types, at 58–88 add
-  lifetime/Undo-aware mutation handling, and at 88–95 add undo/cancel behavior.
-  Its `mutate` returns void; retain the #7 literal
-  `"success" | "failed" | "skipped"` return contract when integrating, including
-  lifetime-invalidated outcomes, because both emoji and color recents depend on
-  confirmed success. Preserve the new Undo/lifetime behavior too.
-  `app.tsx` old lines 14–23 change remove RPC to `removeWithUndo` and add restore;
-  old lines 45–59 replace removal/operation/notice UI with `RemovalControls`.
-  Keep this branch's keyed four-source `IconPicker` in the editor seam, alongside
-  those removal controls. Revalidate removal/Undo of each source and recents on
-  delayed Save/unmount; no Undo behavior is claimed here.
-- **#28 / PR30** remains separate. The inherited server checks encoding,
-  dimensions and byte bounds, not full PNG integrity. Its validator and
-  actual-server rejection/no-side-effect tests must be accepted at integration;
-  this branch does not claim to repair that defect.
+No #41 viewer/PR44 implementation is imported. Root coordinates later viewer
+integration and independent acceptance. No live plugin settings are changed.
 
-After dependency acceptance, retarget the draft PR from `feature/7-emoji-icons`
-to `develop`, reassess changed bases/conflicts, integrate only through separately
-authorized additive signed commits, and rerun all root/browser and actual
-integration checks. No rebase, squash, amend, force push or implicit merge.
+## Current verification
 
-## Verification boundaries
+npm run check passes all 197 root/scripts tests. The finite presets matrix
+passes 86 checks in each theme, and project-grid.browser.mjs passes 15 scenario
+groups including all four sources. The grid harness also checks Glyph/Initials
+exact PNG and node retention through narrow rowfold/filter/resize/realtime and
+native source keyboard cancellation. Browser fixtures mock SDK/RPC/realtime and
+theme tokens; native Chrome canvas, pixels, DOM and keyboard/pointer are real.
+Live BB, remote clients and OS input remain separate acceptance boundaries.
 
-`npm run check` passes; `node --test '*test.mjs'` discovers all 35 root tests,
-including the five presets tests omitted by the baseline npm test script.
-The finite presets Chrome harness checks real PNG bytes, rounded transparency,
-all glyph bounds, all palette contrasts and visible 20-pixel ink, Unicode
-fixtures, recents, retry/outcomes/ownership, source/project away-and-back,
-all 12 directed source replacements, crop regression (native Zoom ArrowRight twice, continuous pointer drag and
-Fill focus and native-label/accessibility-tree names for all three sliders,
-exact-name Playwright getByRole queries, native label-click focus and two-instance
-ID uniqueness),
-null-snapshot Save rejection after encoding failure, crop retry,
-late bitmap disposal,
-unmount and trusted CDP keyboard/focus. Light at 768 px and dark at 320 px
-each pass 86 checks when the optional existing Playwright package path is supplied. The inherited emoji harness passes 22 checks in light mode.
-Screenshots/reports are generated under ignored `dist/`; they are local evidence,
-not repository assets.
-
-SDK plugin ID, RPC, projects, realtime and theme tokens are mocked in browser
-component tests. Actual Canvas, native fonts, PNG encoding/decoding, pixel reads
-and CDP keyboard events run in local Chrome. No installed plugin/config change,
-persistent preview or process-memory relief is used. Live BB, cross-client
-realtime, removal/Undo, upgrade, macOS/Linux/Android and alternate fonts/browsers
-remain unverified; #6 owns release acceptance.
+Earlier bundle measurements above describe the original reviewed stack, not
+incremental cost over the accepted 0.2 baseline. Current integration checks and
+exact-head CI are recorded in the PR handoff.

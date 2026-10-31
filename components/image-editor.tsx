@@ -1,4 +1,6 @@
 import { useId, useMemo, useRef, useState } from "react";
+import { ImageInput } from "./image-input";
+import { singleImageFile } from "../lib/image-input";
 import type { createSettingsState, Project } from "../settings-state";
 import { createDraft } from "../lib/image-draft";
 import { clampCrop, decodeImage, defaultCrop, drawIcon, offsetBounds, type Crop } from "../lib/image-processing";
@@ -15,8 +17,9 @@ export function ImageEditor(props: EditorProps) {
   const id = useId();
   const draft = useMemo(() => createDraft<ImageBitmap>(project.id, () => state.getSnapshot().selected), [project.id, state]);
   const [crop, setCrop] = useState<Crop>(defaultCrop);
+  const [inputError, setInputError] = useState("");
   const input = useRef<HTMLInputElement>(null);
-  const png = usePngDraft(props, () => { draft.cancel(); setCrop(defaultCrop); });
+  const png = usePngDraft(props, () => { draft.cancel(); setCrop(defaultCrop); setInputError(""); });
   const render = (next: Crop) => png.render(canvas => {
     const image = draft.current();
     if (!image) throw new Error("Draft cancelled.");
@@ -28,7 +31,13 @@ export function ImageEditor(props: EditorProps) {
     const bounded = clampCrop(image.width, image.height, next);
     setCrop(bounded); void render(bounded);
   };
-  const upload = async (file: File) => {
+  const upload = async (files: File[]) => {
+    if (state.getSnapshot().selected !== project.id) return;
+    if (busy || state.getSnapshot().operation) { setInputError("Wait for the current icon operation, then try again."); return; }
+    let file: File;
+    try { file = singleImageFile(files); }
+    catch { setInputError("Choose one image at a time. The current draft is unchanged."); return; }
+    setInputError("");
     setCrop(defaultCrop);
     await png.render(async canvas => {
       if (!await draft.load(() => decodeImage(file))) throw new Error("Draft cancelled.");
@@ -42,14 +51,8 @@ export function ImageEditor(props: EditorProps) {
   return <div className="bb-project-icons-crop" onKeyDown={event => {
     if (event.key === "Escape" && !busy) { event.preventDefault(); png.cancel(); focus(); }
   }}>
-    <label htmlFor={id}>Choose image</label>
-    <p id={`${id}-help`} className="bb-project-icons-help">PNG, JPEG, or WebP; up to 2 MB. Adjust the draft, then Save. Output: transparent 64 × 64 PNG.</p>
-    <input ref={input} id={id} type="file" accept="image/png,image/jpeg,image/webp"
-      aria-describedby={`${id}-help`} disabled={busy} onChange={(event) => {
-        const file = event.target.files?.[0];
-        event.target.value = "";
-        if (file) void upload(file);
-      }} />
+    <ImageInput busy={busy} inputRef={input} onFiles={files => void upload(files)}>
+    {inputError && <p role="alert">{inputError}</p>}
     <DraftOutput draft={png} name={project.name} busy={busy} focus={focus}>
       {image && <fieldset disabled={busy} className="bb-project-icons-crop-controls">
         <legend>Image adjustments</legend>
@@ -67,5 +70,6 @@ export function ImageEditor(props: EditorProps) {
         </div>)}
       </fieldset>}
     </DraftOutput>
+    </ImageInput>
   </div>;
 }
