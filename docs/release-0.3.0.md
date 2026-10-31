@@ -18,14 +18,41 @@ Earlier runtime results below remain evidence only for their recorded sources.
 They do not establish runtime acceptance of the automatic fallback addition.
 
 Two fresh isolated startup attempts stopped before any project/plugin mutation:
-the server did not expose the required loopback listener during startup readiness
-checks. Logs show built-in plugin initialization without a ready listener.
+the mandatory Windows listener observations returned no matching listener.
+This does not establish a startup hang: the full logs contain Server listening
+before built-in plugin loading, including thread-list. The earlier interpretation
+of the tail-only logs was incorrect.
 Both owned process trees were closed; independent checks found ports 48973/48974
 closed. Evidence is retained in ignored dist/issue9-final-a, including the first
 startup-stop result. No accepted release snapshot was installed in these attempts.
 The remaining seven replacements, reset, viewport/theme captures, fallback runtime
 matrix and metadata 0.3.0 upgrade remain pending. The prepared second scenario
 was not started. Further runtime attempts await coordinator direction.
+
+### Server-only measurement calibration
+
+A separately authorized server-only attempt used a fresh data directory,
+no daemon enrollment and no project/plugin operations. Async requests had a
+two-second timeout and startup had a 180-second limit inside the ten-minute cap.
+The run stopped on disagreement and cleaned up in 5.4 seconds.
+
+At 2026-10-31T15:41:12.329Z, `/health` returned HTTP 200,
+Content-Type application/json and `{"ok":true}`. The response socket recorded
+remote 127.0.0.1:48973 and local 127.0.0.1:65012. A concurrent `/api/health`
+request returned text/html and the BB app shell: it is not the health endpoint.
+Concurrent Windows Get-NetTCPConnection (both exact and filtered queries) and
+.NET GetActiveTcpListeners returned no target listeners. The owned launcher
+PID 56588 had null exit/signal fields during measurement; CIM also identified
+owned child node PID 56916. The launcher exited only after owned cleanup.
+Both listener APIs reported closed target ports after cleanup.
+
+Installed launcher flags propagate through environment to the child server.
+The registered `/health` route precedes HTTP listen; plugins start asynchronously
+after listen. Finishing plugin loading awaits artifact GC, not initial listen.
+The evidence establishes an HTTP-versus-Windows-observation discrepancy, not its
+underlying cause. Full identity guards remain unchanged; runtime acceptance is
+pending coordinator review. Evidence: ignored dist/issue9-calibration, including
+socket/body/timestamp measurements, process ancestry, exit details and logs.
 
 ## Scope and compatibility
 
