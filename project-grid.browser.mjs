@@ -24,6 +24,8 @@ await build({
   stdin: { contents: `
     import { createRoot } from "react-dom/client";
     import "./app";
+    import { automaticIcon } from "./lib/automatic-icon";
+    window.automaticIcon = automaticIcon;
     const names = ["Atlas", "Untitled", "Untitled", "A very long project name that wraps safely across multiple lines",
       "BuildPipelineWithAnUnbrokenNameThatMustNeverPushTheSettingsPageOutsideItsViewport",
       "Preview service", "Research", "Website", "Notes", "Library", "Experiments", "Archive"];
@@ -102,13 +104,25 @@ try {
   assert.equal(await cards.count(), 12);
   await page.getByText("Preview unavailable", { exact: true }).waitFor();
   assert.match(await card(5).innerText(), /Icon assigned/);
-  assert.doesNotMatch(await card(5).innerText(), /No icon yet/);
+  assert.doesNotMatch(await card(5).innerText(), /Automatic initials/);
   assert.match(await card(1).innerText(), /proj_0000000001/);
   assert.match(await card(2).innerText(), /proj_0000000002/);
   assert.equal(await page.locator(".bb-project-icons-editor").count(), 1);
   assert.equal(await page.locator(".bb-project-icons-editor").isVisible(), false);
   assert.equal(await page.evaluate(() => scrollY), 0);
   await page.evaluate(() => window.overviewEditor = document.querySelector(".bb-project-icons-editor"));
+  const beforeFallback = await page.evaluate(() => ({ calls: window.calls.length, storage: JSON.stringify(localStorage) }));
+  await card(1).click();
+  assert.match(await card(1).innerText(), /Automatic initials/);
+  assert.equal(await card(1).locator("img").getAttribute("src"), await page.evaluate(() => window.automaticIcon(window.projects[1].id, window.projects[1].name)));
+  assert.equal(await page.locator(".bb-project-icons-preview > img").getAttribute("src"), await card(1).locator("img").getAttribute("src"));
+  await page.evaluate(() => { window.projects[1].name = "👩🏽‍💻 workspace"; window.realtime(); });
+  await page.waitForFunction(() => document.querySelectorAll(".bb-project-icons-project")[1].textContent.includes("👩🏽‍💻 workspace"));
+  assert.equal(await card(1).locator("img").getAttribute("src"), await page.evaluate(() => window.automaticIcon(window.projects[1].id, window.projects[1].name)));
+  assert.deepEqual(await page.evaluate(() => ({ calls: window.calls.length, storage: JSON.stringify(localStorage) })), beforeFallback);
+  await page.evaluate(() => { window.projects[1].name = "Untitled"; window.realtime(); });
+  await page.waitForFunction(() => document.querySelectorAll(".bb-project-icons-project")[1].textContent.includes("Untitled"));
+  await card(1).click();
   const rowProof = [];
   for (const width of [768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 1100 });
@@ -476,7 +490,7 @@ try {
   assert.equal(await page.evaluate(() => window.calls.find(call => call.method === "save").input.projectId), "proj_0000000002");
   await card(2).click();
   await page.getByRole("button", { name: "Remove icon", exact: true }).click();
-  await page.waitForFunction(() => document.querySelectorAll(".bb-project-icons-project")[2].textContent.includes("No icon yet"));
+  await page.waitForFunction(() => document.querySelectorAll(".bb-project-icons-project")[2].textContent.includes("Automatic initials"));
   await picker.setInputFiles(file("undo-draft.png"));
   await preview.waitFor();
   await page.evaluate(() => {
