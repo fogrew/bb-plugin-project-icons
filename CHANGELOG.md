@@ -10,6 +10,8 @@ with the explicit pre-1.0 policy in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ### Added
 
+- Automatic Unicode initials in the sidebar and Settings for projects without saved icons, with deterministic local colors and no stored assignment.
+
 - Choose searchable built-in Feather glyphs or Unicode initials with contrasting colors, exact PNG previews and separate success-only local recent colors.
 
 - Inspect current and draft PNG icons in an accessible enlarged dialog with separate close controls, keyboard support and a transparency background.
