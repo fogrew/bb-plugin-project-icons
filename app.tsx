@@ -1,3 +1,5 @@
+import { mountIcons } from "./lib/sidebar-icons";
+import { AutomaticIcon } from "./components/automatic-icon";
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { definePluginApp, useRealtime, useRpc } from "@get-bb/plugin-sdk/app";
 import type { rpcContract } from "./server";
@@ -43,7 +45,7 @@ function Settings() {
     {project && <fieldset className="bb-project-icons-editor">
       <legend>Icon for {project.name}</legend>
       <div className="bb-project-icons-preview">
-        {project.revision !== null ? <PngPreview url={iconUrl(project.id, project.revision)} label="Current project icon" /> : <span>No icon assigned</span>}
+        {project.revision !== null ? <PngPreview url={iconUrl(project.id, project.revision)} label="Current project icon" /> : <><AutomaticIcon id={project.id} name={project.name} /><span>Automatic initials</span></>}
         {projects.some((row) => row.id !== project.id && row.name === project.name) &&
           <small className="bb-project-icons-id">{project.id}</small>}
       </div>
@@ -59,67 +61,6 @@ function SidebarUpdates() {
   return null;
 }
 
-function mountIcons(signal: AbortSignal): () => void {
-  let icons: Record<string, number> = {};
-  let scheduled = false;
-  const decorate = () => {
-    if (signal.aborted) return;
-    document.querySelectorAll<HTMLElement>("[data-sidebar-project-id]").forEach((row) => {
-      const id = row.dataset.sidebarProjectId ?? "";
-      const title = row.querySelector<HTMLElement>(':scope [data-sidebar="group-label"] > span:first-child > span[title]');
-      const existing = row.querySelector<HTMLImageElement>(".bb-project-icons-image");
-      const revision = icons[id];
-      if (!title || !revision) {
-        existing?.remove();
-        row.classList.remove("bb-project-icons-row");
-        return;
-      }
-      const url = iconUrl(id, revision);
-      if (existing && existing.src !== new URL(url, location.href).href) existing.src = url;
-      if (!existing) {
-        const image = document.createElement("img");
-        image.className = "bb-project-icons-image";
-        image.alt = "";
-        image.setAttribute("aria-hidden", "true");
-        image.src = url;
-        title.before(image);
-      }
-      row.classList.add("bb-project-icons-row");
-    });
-  };
-  const schedule = () => {
-    if (scheduled || signal.aborted) return;
-    scheduled = true;
-    queueMicrotask(() => { scheduled = false; decorate(); });
-  };
-  const observer = new MutationObserver((mutations) => {
-    if (mutations.some((mutation) => [...Array.from(mutation.addedNodes), ...Array.from(mutation.removedNodes)].some((node) => node instanceof Element && !node.classList.contains("bb-project-icons-image")))) schedule();
-  });
-  observer.observe(document.body, { childList: true, subtree: true });
-  const refresh = async () => {
-    try {
-      const response = await fetch(`${base}/icons`, { credentials: "same-origin", cache: "no-store", signal });
-      if (!response.ok) return;
-      const data: unknown = await response.json();
-      if (!data || typeof data !== "object" || Array.isArray(data)) return;
-      icons = Object.fromEntries(Object.entries(data).filter(([id, revision]) => /^proj_[a-z0-9]{10,32}$/.test(id) && typeof revision === "number")) as Record<string, number>;
-      schedule();
-    } catch (cause) { if (!signal.aborted) console.warn("Project Icons refresh failed", cause); }
-  };
-  const onFocus = () => { void refresh(); };
-  window.addEventListener("focus", onFocus);
-  window.addEventListener("bb-project-icons-changed", onFocus);
-  document.addEventListener("visibilitychange", onFocus);
-  void refresh();
-  return () => {
-    observer.disconnect();
-    window.removeEventListener("focus", onFocus);
-    window.removeEventListener("bb-project-icons-changed", onFocus);
-    document.removeEventListener("visibilitychange", onFocus);
-    document.querySelectorAll(".bb-project-icons-image").forEach((node) => node.remove());
-    document.querySelectorAll(".bb-project-icons-row").forEach((node) => node.classList.remove("bb-project-icons-row"));
-  };
-}
 
 export default definePluginApp((app) => {
   app.slots.settingsSection({ id: "icons", title: "Project icons", description: "Choose an image for each project in the native sidebar.", component: Settings });
