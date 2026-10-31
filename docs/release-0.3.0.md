@@ -3,6 +3,30 @@
 Status: preparation only. Release date is pending owner authorization.
 Main integration, tagging, publication and the return PR to develop remain owner-controlled.
 
+## Current candidate after automatic fallback integration
+
+Accepted #46 source `87c8ee7cd220d911e7a3c33b393761943ce8f186` was integrated
+through personally signed additive merge `15f0d4fdc8b0822ba5588f434ee793ac8a34571b`.
+Package and lockfile versions remain 0.3.0. Unassigned projects now show
+automatic initials, including after removal; assigned PNGs retain priority.
+See the README for local font and automatic-color limitations.
+
+Local npm run check passed 197 tests, typecheck and build after integration.
+Normal Ubuntu CI passed on the merge head
+([run 41215518615](https://github.com/fogrew/bb-plugin-project-icons/actions/runs/41215518615)).
+Earlier runtime results below remain evidence only for their recorded sources.
+They do not establish runtime acceptance of the automatic fallback addition.
+
+Two fresh isolated startup attempts stopped before any project/plugin mutation:
+the server did not expose the required loopback listener during startup readiness
+checks. Logs show built-in plugin initialization without a ready listener.
+Both owned process trees were closed; independent checks found ports 48973/48974
+closed. Evidence is retained in ignored dist/issue9-final-a, including the first
+startup-stop result. No accepted release snapshot was installed in these attempts.
+The remaining seven replacements, reset, viewport/theme captures, fallback runtime
+matrix and metadata 0.3.0 upgrade remain pending. The prepared second scenario
+was not started. Further runtime attempts await coordinator direction.
+
 ## Scope and compatibility
 
 Accepted application source: `c9966661aa3fdc06976cd493bd4f51ae551643aa`.
