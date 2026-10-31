@@ -10,6 +10,8 @@ with the explicit pre-1.0 policy in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ### Added
 
+- Inspect current and draft PNG icons in an accessible enlarged dialog with separate close controls, keyboard support and a transparency background.
+
 - Search a local licensed emoji catalog and keep bounded client-local recent choices. Preview exact transparent PNG snapshots before saving, with device-dependent pre-save rendering.
 
 ## 0.2.0 - 2026-10-27

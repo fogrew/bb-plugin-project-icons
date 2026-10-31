@@ -44,6 +44,8 @@ All sources retain normalized PNG storage. The accepted server validates PNG str
 
 ## Compatibility
 
+Use the current or enlarged draft PNG button to inspect it in a modal preview. Close preview or Escape returns to the editor without saving or cancelling its draft. The checkerboard shows transparency; the close control stays above the image. See [preview validation and host limitations](docs/png-preview.md).
+
 BB has no native project image field. This plugin enhances the native thread-list project headings through a content script using BB 0.46's `data-sidebar-project-id` and heading DOM. A future BB sidebar markup change may require a plugin update. Other project pickers do not show these images.
 
 ## Develop

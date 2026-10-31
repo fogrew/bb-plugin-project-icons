@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { ImageInput } from "./image-input";
+import { IconPreview } from "./icon-preview";
 import { singleImageFile } from "../lib/image-input";
 import type { createSettingsState, Project } from "../settings-state";
 import { createDraft } from "../lib/image-draft";
@@ -88,10 +89,7 @@ export function ImageEditor({ project, state, busy, registerCancel }: EditorProp
     {loading && <p role="status">Reading image…</p>}
     {error && <p role="alert">{error}</p>}
     {preview && <>
-      <figure className="bb-project-icons-crop-preview">
-        <img className="bb-project-icons-large-sample" src={preview} alt="Enlarged draft icon" />
-        <figcaption><span className="bb-project-icons-sidebar-sample"><img src={preview} alt="Draft icon at 20 pixels" />{project.name}</span><small>Actual sidebar size: 20 × 20 pixels</small></figcaption>
-      </figure>
+      <IconPreview url={preview} name={project.name} />
       <fieldset disabled={busy} className="bb-project-icons-crop-controls">
         <legend>Image adjustments</legend>
         <div className="bb-project-icons-actions" role="group" aria-label="Image sizing">
