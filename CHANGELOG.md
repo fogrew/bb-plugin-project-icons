@@ -8,6 +8,8 @@ with the explicit pre-1.0 policy in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Unreleased
 
+Version 0.3.0 is in preparation; release date and publication are pending owner authorization.
+
 ### Added
 
 - Choose searchable built-in Feather glyphs or Unicode initials with contrasting colors, exact PNG previews and separate success-only local recent colors.
