@@ -112,7 +112,8 @@ across projects, neither account-isolated nor synced across clients.
 ## Accepted integration base
 
 This branch is synchronized by an additive signed merge with accepted develop
-1c902471edfdc9247fcce3e4647e54bd04a229af (PR43).
+a3fc59bc9839d46e05011a0041fba3c2bc70d19a (PR44), following PR43 at
+1c902471edfdc9247fcce3e4647e54bd04a229af.
 Accepted server, strict PNG validation/highwater, settings-state Undo/outcome
 handling, ImageInput, ProjectList mobile row folding and removal controls are
 retained from that base. ImageEditor combines accepted input ownership and
@@ -121,13 +122,16 @@ The glyph catalog, palette, Unicode segmentation and color recents are preserved
 The shared snapshot lifecycle replaces duplicated Image/Emoji draft feedback;
 confirmed Save still uses the accepted explicit outcome contract.
 
-No #41 viewer/PR44 implementation is imported. Root coordinates later viewer
-integration and independent acceptance. No live plugin settings are changed.
+Accepted IconPreview/PngPreview from #41/PR44 is shared by all four sources
+through DraftOutput. Its scoped preview-ignore marker, native dialog close and
+focus return logic are preserved unchanged; no duplicate viewer is added.
+No live plugin settings are changed.
 
 ## Current verification
 
 npm run check passes all 197 root/scripts tests. The finite presets matrix
-passes 86 checks in each theme, and project-grid.browser.mjs passes 15 scenario
+passes 94 checks in each theme, including exact four-source viewer bytes,
+scoped ignore markers and separate dialog Escape/focus return, and project-grid.browser.mjs passes 15 scenario
 groups including all four sources. The grid harness also checks Glyph/Initials
 exact PNG and node retention through narrow rowfold/filter/resize/realtime and
 native source keyboard cancellation. Browser fixtures mock SDK/RPC/realtime and

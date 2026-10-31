@@ -178,6 +178,18 @@ async function browserChecks() {
     await choose(to);url=preview().src;click("Save");await wait(()=>!h.state.getSnapshot().operation&&!preview());
     check(h.calls.at(-1).base64===url.split(",")[1],"replacement "+from+" -> "+to);
   }
+  for(const source of ["Image","Emoji","Glyph","Initials"]){
+    await choose(source);const bytes=preview().src;
+    click("Open enlarged draft icon preview");
+    await wait(()=>document.querySelector("dialog[open]"));
+    const dialog=document.querySelector("dialog[open]");
+    check(dialog.querySelector('img[alt="PNG preview contents"]').src===bytes &&
+      !!dialog.closest("[data-bb-image-preview-ignore]"),source+" shared viewer shows exact PNG with scoped ignore marker");
+    dialog.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true}));
+    await wait(()=>!document.querySelector("dialog[open]") && document.activeElement.getAttribute("aria-label")==="Open enlarged draft icon preview");
+    check(preview()?.src===bytes && document.activeElement.getAttribute("aria-label")==="Open enlarged draft icon preview",
+      source+" dialog Escape preserves draft and returns trigger focus");
+  }
   await choose("Image");const fit=preview().src;click("Fill");await wait(()=>preview()?.src!==fit);
   check(!!button("Fit"),"image Fit/Fill retained");click("Cancel");await absent();
   h.holdDecode();
