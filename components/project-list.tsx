@@ -1,3 +1,4 @@
+import { AutomaticIcon } from "./automatic-icon";
 import { useId, useLayoutEffect, useRef, useState } from "react";
 import type { KeyboardEvent, ReactNode } from "react";
 import { filterProjects, type Project } from "../settings-state";
@@ -111,13 +112,13 @@ export function ProjectList({ projects, selected, query, onQuery, onSelect, icon
           }}>
           <span className="bb-project-icons-thumbnail">
             {row.revision !== null ? <IconPreview key={iconUrl(row.id, row.revision)} src={iconUrl(row.id, row.revision)} />
-              : <span className="bb-project-icons-placeholder" aria-hidden="true">No image</span>}
+              : <AutomaticIcon id={row.id} name={row.name} />}
           </span>
           <span className="bb-project-icons-identity">
             <span className="bb-project-icons-name">{row.name}</span>
             {(names.get(row.name) ?? 0) > 1 && <small>{row.id}</small>}
           </span>
-          <span className="bb-project-icons-assignment">{row.revision !== null ? "Icon assigned" : "No icon yet"}</span>
+          <span className="bb-project-icons-assignment">{row.revision !== null ? "Icon assigned" : "Automatic initials"}</span>
           <span className="bb-project-icons-action">{opened && selected === row.id ? "Fold editor" : "Edit icon"}</span>
           <svg className="bb-project-icons-chevron" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.5" /></svg>
         </button>

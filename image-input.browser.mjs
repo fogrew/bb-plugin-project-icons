@@ -173,7 +173,7 @@ try {
 
   await page.evaluate(() => window.failSave = true);
   await page.getByRole("button", { name: "Save", exact: true }).click();
-  await page.getByRole("status").filter({ hasText: "Could not upload" }).waitFor();
+  await page.getByRole("status").filter({ hasText: "Could not save" }).waitFor();
   assert.equal(await preview.isVisible(), true);
   await page.evaluate(() => { window.failSave = false; window.holdSave = true; });
   await page.getByRole("button", { name: "Save", exact: true }).click();

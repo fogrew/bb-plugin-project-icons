@@ -8,6 +8,18 @@ with the explicit pre-1.0 policy in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Unreleased
 
+Version 0.3.0 is in preparation; release date and publication are pending owner authorization.
+
+### Added
+
+- Automatic Unicode initials in the sidebar and Settings for projects without saved icons, with deterministic local colors and no stored assignment.
+
+- Choose searchable built-in Feather glyphs or Unicode initials with contrasting colors, exact PNG previews and separate success-only local recent colors.
+
+- Inspect current and draft PNG icons in an accessible enlarged dialog with separate close controls, keyboard support and a transparency background.
+
+- Search a local licensed emoji catalog and keep bounded client-local recent choices. Preview exact transparent PNG snapshots before saving, with device-dependent pre-save rendering.
+
 ## 0.2.0 - 2026-10-27
 
 No historical 0.1.0 release date is asserted.

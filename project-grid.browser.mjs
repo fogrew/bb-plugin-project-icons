@@ -10,6 +10,7 @@ import { PNG } from "pngjs";
 const output = resolve("dist/project-grid-browser");
 await mkdir(output, { recursive: true });
 const sdk = `
+  export const experimental_usePluginId = () => "project-grid-test";
   import { useEffect } from "react";
   const rpc = { call: (...args) => window.api(...args) };
   export const useRpc = () => rpc;
@@ -23,6 +24,8 @@ await build({
   stdin: { contents: `
     import { createRoot } from "react-dom/client";
     import "./app";
+    import { automaticIcon } from "./lib/automatic-icon";
+    window.automaticIcon = automaticIcon;
     const names = ["Atlas", "Untitled", "Untitled", "A very long project name that wraps safely across multiple lines",
       "BuildPipelineWithAnUnbrokenNameThatMustNeverPushTheSettingsPageOutsideItsViewport",
       "Preview service", "Research", "Website", "Notes", "Library", "Experiments", "Archive"];
@@ -101,13 +104,25 @@ try {
   assert.equal(await cards.count(), 12);
   await page.getByText("Preview unavailable", { exact: true }).waitFor();
   assert.match(await card(5).innerText(), /Icon assigned/);
-  assert.doesNotMatch(await card(5).innerText(), /No icon yet/);
+  assert.doesNotMatch(await card(5).innerText(), /Automatic initials/);
   assert.match(await card(1).innerText(), /proj_0000000001/);
   assert.match(await card(2).innerText(), /proj_0000000002/);
   assert.equal(await page.locator(".bb-project-icons-editor").count(), 1);
   assert.equal(await page.locator(".bb-project-icons-editor").isVisible(), false);
   assert.equal(await page.evaluate(() => scrollY), 0);
   await page.evaluate(() => window.overviewEditor = document.querySelector(".bb-project-icons-editor"));
+  const beforeFallback = await page.evaluate(() => ({ calls: window.calls.length, storage: JSON.stringify(localStorage) }));
+  await card(1).click();
+  assert.match(await card(1).innerText(), /Automatic initials/);
+  assert.equal(await card(1).locator("img").getAttribute("src"), await page.evaluate(() => window.automaticIcon(window.projects[1].id, window.projects[1].name)));
+  assert.equal(await page.locator(".bb-project-icons-preview > img").getAttribute("src"), await card(1).locator("img").getAttribute("src"));
+  await page.evaluate(() => { window.projects[1].name = "👩🏽‍💻 workspace"; window.realtime(); });
+  await page.waitForFunction(() => document.querySelectorAll(".bb-project-icons-project")[1].textContent.includes("👩🏽‍💻 workspace"));
+  assert.equal(await card(1).locator("img").getAttribute("src"), await page.evaluate(() => window.automaticIcon(window.projects[1].id, window.projects[1].name)));
+  assert.deepEqual(await page.evaluate(() => ({ calls: window.calls.length, storage: JSON.stringify(localStorage) })), beforeFallback);
+  await page.evaluate(() => { window.projects[1].name = "Untitled"; window.realtime(); });
+  await page.waitForFunction(() => document.querySelectorAll(".bb-project-icons-project")[1].textContent.includes("Untitled"));
+  await card(1).click();
   const rowProof = [];
   for (const width of [768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 1100 });
@@ -442,7 +457,7 @@ try {
   await card(2).click();
   assert.equal(await preview.count(), 0);
   await picker.setInputFiles(file("late.png"));
-  await page.getByText("Reading image…", { exact: true }).waitFor();
+  await page.getByText("Rendering draft…", { exact: true }).waitFor();
   await card(1).click();
   await card(2).click();
   await page.evaluate(() => window.finishDecode());
@@ -475,7 +490,7 @@ try {
   assert.equal(await page.evaluate(() => window.calls.find(call => call.method === "save").input.projectId), "proj_0000000002");
   await card(2).click();
   await page.getByRole("button", { name: "Remove icon", exact: true }).click();
-  await page.waitForFunction(() => document.querySelectorAll(".bb-project-icons-project")[2].textContent.includes("No icon yet"));
+  await page.waitForFunction(() => document.querySelectorAll(".bb-project-icons-project")[2].textContent.includes("Automatic initials"));
   await picker.setInputFiles(file("undo-draft.png"));
   await preview.waitFor();
   await page.evaluate(() => {
@@ -538,6 +553,47 @@ try {
   });
   assert.equal(hostReveal, true);
   scenarios.push("Activation also reveals controls within a bounded host scroll pane");
+  await page.evaluate(() => { document.getElementById("root").style.height = ""; });
+  await page.getByRole("tab", { name: "Emoji", exact: true }).click();
+  await page.getByRole("button", { name: "rocket", exact: true }).click();
+  await page.getByAltText("Enlarged draft icon").waitFor();
+  const emojiBytes = await page.getByAltText("Enlarged draft icon").getAttribute("src");
+  await page.evaluate(() => window.emojiNode = document.querySelector('img[alt="Enlarged draft icon"]'));
+  await card(11).click();
+  await search.fill("no-match-emoji");
+  await resize({ width: 375, height: 800 });
+  await page.evaluate(() => window.realtime());
+  await search.fill("");
+  await card(11).click();
+  assert.equal(await page.getByAltText("Enlarged draft icon").getAttribute("src"), emojiBytes);
+  assert.equal(await page.evaluate(() => window.emojiNode === document.querySelector('img[alt="Enlarged draft icon"]')), true);
+  await page.getByRole("tab", { name: "Image", exact: true }).focus();
+  await page.keyboard.press("ArrowRight");
+  assert.equal(await page.getByRole("tab", { name: "Emoji", exact: true }).getAttribute("aria-selected"), "true");
+  await page.getByRole("searchbox", { name: "Search emoji", exact: true }).focus();
+  await page.keyboard.press("Escape");
+  await page.getByAltText("Enlarged draft icon").waitFor({ state: "detached" });
+  scenarios.push("Emoji PNG and exact node survive accepted fold/filter/resize/realtime; native source-tab keyboard and Escape cancel remain scoped");
+  for (const source of ["Glyph", "Initials"]) {
+    await page.getByRole("tab", { name: source, exact: true }).click();
+    if (source === "Glyph") await page.getByRole("button", { name: "Folder", exact: true }).click();
+    await page.getByAltText("Enlarged draft icon").waitFor();
+    const bytes = await page.getByAltText("Enlarged draft icon").getAttribute("src");
+    await page.evaluate(() => window.presetNode = document.querySelector('img[alt="Enlarged draft icon"]'));
+    await card(11).click();
+    await search.fill("no-match-preset");
+    await resize({ width: 320, height: 800 });
+    await page.evaluate(() => window.realtime());
+    await search.fill("");
+    await card(11).click();
+    assert.equal(await page.getByAltText("Enlarged draft icon").getAttribute("src"), bytes);
+    assert.equal(await page.evaluate(() => window.presetNode === document.querySelector('img[alt="Enlarged draft icon"]')), true);
+    await page.getByRole("tab", { name: source, exact: true }).focus();
+    await page.keyboard.press("Home");
+    assert.equal(await page.getByRole("tab", { name: "Image", exact: true }).getAttribute("aria-selected"), "true");
+    await page.getByAltText("Enlarged draft icon").waitFor({ state: "detached" });
+    scenarios.push(source + " exact PNG/node survive narrow fold/filter/resize/realtime; native source keyboard cancels draft");
+  }
   assert.deepEqual(errors, []);
   const result = { chrome: browser.version(), scenarios, mocks: "SDK registration/useRpc/realtime, RPC assignments/Undo and host theme tokens; native React/DOM/Chrome/PNG/canvas; fixture HTTP only", liveBB: false };
   await writeFile(resolve(output, "results.json"), JSON.stringify(result, null, 2));
