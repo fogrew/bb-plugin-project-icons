@@ -68,6 +68,11 @@
 .bb-project-icons-emojis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; max-height: 256px; overflow-y: auto; padding: 4px; }
 .bb-project-icons-emojis button { justify-self: stretch; min-height: 44px; padding: 4px; font: 24px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif; }
 .bb-project-icons-emojis [aria-pressed=true] { background: var(--muted); outline: 2px solid var(--ring, var(--foreground)); }
+
+.bb-project-icons-presets { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; padding: 4px; min-width: 0; }
+.bb-project-icons-presets button { display: grid; place-items: center; gap: 4px; justify-self: stretch; padding: 8px 2px; min-height: 44px; font-size: 12px; overflow-wrap: anywhere; }
+.bb-project-icons-presets [aria-pressed=true] { outline: 2px solid var(--ring, var(--foreground)); outline-offset: 1px; }
+
 .bb-project-icons-png-preview { min-width: 0; }
 .bb-project-icons-preview-trigger { display: inline-grid; place-items: center; min-width: 44px; min-height: 44px; padding: 4px; cursor: zoom-in; }
 .bb-project-icons-preview-trigger:focus-visible { outline: 2px solid var(--ring, currentColor); outline-offset: 2px; }

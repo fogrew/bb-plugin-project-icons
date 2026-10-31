@@ -79,3 +79,24 @@ injected encoding failure. Results are written under ignored
 integration and OS input are untested. This harness is separate from default CI.
 
 For the optional finite component/browser harness, install temporary tooling with `npm install --no-save --package-lock=false --ignore-scripts react@19 react-dom@19 playwright-core`, run `npm run build`, then run `node image-input.browser.mjs`. It launches and closes headless Chrome, uses a local file fixture without a server, and writes results and a 320 px screenshot under ignored `dist/image-input-browser/`. Set `CHROME_PATH` if Chrome is elsewhere. The harness uses real React, DOM focus, PNG decoding and canvas rendering, with synthetic drop/paste events and fake RPC responses. It does not install/reload the plugin or establish live-BB, native file-dialog or OS clipboard evidence. This optional harness is separate from the default CI suite; package manifests remain unchanged by the temporary tooling install.
+
+Choose **Glyph** for eight locally bundled Feather glyphs, searchable by English
+name or keyword. Choose **Initials** for one or two grapheme clusters (up to 128
+UTF-16 code units), preserving case, combining marks and compound sequences.
+The project-name default takes the first grapheme from each of the first two
+words, or the first two from a single word; Unicode whitespace and punctuation
+separate words. An empty name uses `?`. Controls, lone surrogates and bidi
+formatting controls are rejected. Initials use installed system fonts; font
+coverage, complex-script shaping and color emoji vary by platform. Color emoji
+may ignore the selected foreground. Check the encoded PNG at 20 px before Save.
+
+Glyphs and initials share eight background colors with deterministic black or
+white foreground, chosen for at least 4.5:1 mathematical contrast. Rounded
+corners are transparent; the colored interior keeps contrast independent of the
+sidebar theme. Recent colors store at most six known palette IDs separately from
+emoji history. They update only after confirmed Save of the still-current draft;
+**Clear recent colors** resets that client-local preference. Browser-profile,
+origin, account-sharing and blocked-storage limits are the same as emoji recents.
+
+
+See [Glyph and initials contract](docs/icon-presets.md) for source/license and verification details.

@@ -443,7 +443,7 @@ try {
   await card(2).click();
   assert.equal(await preview.count(), 0);
   await picker.setInputFiles(file("late.png"));
-  await page.getByText("Reading image…", { exact: true }).waitFor();
+  await page.getByText("Rendering draft…", { exact: true }).waitFor();
   await card(1).click();
   await card(2).click();
   await page.evaluate(() => window.finishDecode());
@@ -560,6 +560,26 @@ try {
   await page.keyboard.press("Escape");
   await page.getByAltText("Enlarged draft icon").waitFor({ state: "detached" });
   scenarios.push("Emoji PNG and exact node survive accepted fold/filter/resize/realtime; native source-tab keyboard and Escape cancel remain scoped");
+  for (const source of ["Glyph", "Initials"]) {
+    await page.getByRole("tab", { name: source, exact: true }).click();
+    if (source === "Glyph") await page.getByRole("button", { name: "Folder", exact: true }).click();
+    await page.getByAltText("Enlarged draft icon").waitFor();
+    const bytes = await page.getByAltText("Enlarged draft icon").getAttribute("src");
+    await page.evaluate(() => window.presetNode = document.querySelector('img[alt="Enlarged draft icon"]'));
+    await card(11).click();
+    await search.fill("no-match-preset");
+    await resize({ width: 320, height: 800 });
+    await page.evaluate(() => window.realtime());
+    await search.fill("");
+    await card(11).click();
+    assert.equal(await page.getByAltText("Enlarged draft icon").getAttribute("src"), bytes);
+    assert.equal(await page.evaluate(() => window.presetNode === document.querySelector('img[alt="Enlarged draft icon"]')), true);
+    await page.getByRole("tab", { name: source, exact: true }).focus();
+    await page.keyboard.press("Home");
+    assert.equal(await page.getByRole("tab", { name: "Image", exact: true }).getAttribute("aria-selected"), "true");
+    await page.getByAltText("Enlarged draft icon").waitFor({ state: "detached" });
+    scenarios.push(source + " exact PNG/node survive narrow fold/filter/resize/realtime; native source keyboard cancels draft");
+  }
   assert.deepEqual(errors, []);
   const result = { chrome: browser.version(), scenarios, mocks: "SDK registration/useRpc/realtime, RPC assignments/Undo and host theme tokens; native React/DOM/Chrome/PNG/canvas; fixture HTTP only", liveBB: false };
   await writeFile(resolve(output, "results.json"), JSON.stringify(result, null, 2));

@@ -86,7 +86,7 @@ async function browserChecks() {
   check(document.activeElement.getAttribute("aria-label") === "keycap: #", "End handler reaches final result");
 
   h.holdFont(); click("woman technologist: medium skin tone");
-  await wait(() => document.body.textContent.includes("Rendering emoji"));
+  await wait(() => document.body.textContent.includes("Rendering draft"));
   click("Cancel"); h.releaseFont(); await new Promise(resolve => setTimeout(resolve, 30));
   check(!preview() && recents().length === 0, "Cancel invalidates delayed font rendering without recents");
   h.holdFont(); click("flag: Cyprus"); await wait(() => button("Cancel"));
