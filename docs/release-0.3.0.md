@@ -3,6 +3,44 @@
 Status: preparation only. Release date is pending owner authorization.
 Main integration, tagging, publication and the return PR to develop remain owner-controlled.
 
+## Resumed runtime acceptance (2026-11-02)
+
+Both focused runs completed against candidate
+`1c2baa78ad470e82c19325fff99016b65cd1d606`, package version 0.3.0,
+using installed BB 0.48.1 and Node 24.21.0.
+
+- All seven outstanding directed replacements passed Cancel preservation,
+  Save payload/HTTP PNG equality and server-revision convergence in two clients.
+  Combined with earlier source-tagged evidence this covers all twelve directions;
+  the earlier five were not rerun against the automatic-fallback candidate.
+- Draft Cancel/reset checks passed for Image, Emoji, Glyph and Initials.
+- A fresh path install from exact v0.2.0 preserved assignment, revision and all
+  303 PNG bytes after upgrading to the exact 0.3.0 candidate.
+- Actual Settings exercised assigned-icon priority, missing-icon automatic
+  initials, rename after reload, Remove and Undo with exact restored bytes.
+- Light/dark screenshots were captured at 320, 375 and 1440 pixels. Spot review
+  of light/320, dark/375 and dark/1440 showed wrapping without horizontal clipping.
+  These scrolled screenshots do not prove visibility of every offscreen control.
+
+Fresh owned temporary directories were used for each run. Identity checks used
+the random health launch challenge, response socket, canonical data directory,
+listening log, owned process ancestry and exclusive IPv4 bind collision; daemon
+checks additionally used raw TCP ownership and exact host/server identity.
+Both runs closed owned process trees; exclusive binds then succeeded on both
+ports and HTTP connection refusal was confirmed.
+
+The exact pinned local build toolchain was exposed through a node_modules
+junction in each temporary directory. Toolchain downloading was not exercised.
+An earlier equivalent-protocol run failed during toolchain installation;
+its evidence remains separate. No product source or live installation changed.
+Automatic provider catalog prewarm occurred; no provider turns were requested.
+
+Evidence: ignored `dist/issue9-resume-a` and `dist/issue9-resume-b` contain
+drivers, manifests, logs, structured results and screenshots. Native sidebar
+headings, physical devices, screen readers, OS clipboard/dialogs, other browsers
+and published Git/tag upgrade resolution remain unverified.
+Main integration, signed tag, publication and return PR still await owner action.
+
 ## Current candidate after automatic fallback integration
 
 Accepted #46 source `87c8ee7cd220d911e7a3c33b393761943ce8f186` was integrated
