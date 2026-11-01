@@ -12,6 +12,8 @@ Version 0.3.0 is in preparation; release date and publication are pending owner 
 
 ### Added
 
+- Display the installed plugin version in Project Icons settings.
+
 - Automatic Unicode initials in the sidebar and Settings for projects without saved icons, with deterministic local colors and no stored assignment.
 
 - Choose searchable built-in Feather glyphs or Unicode initials with contrasting colors, exact PNG previews and separate success-only local recent colors.
