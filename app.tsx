@@ -69,23 +69,58 @@ function ContextualEditor() {
   const [request, setRequest] = useState<{ projectId: string; key: number } | null>(null);
   const dialog = useRef<HTMLDialogElement>(null);
   const origin = useRef<HTMLElement | null>(null);
+  const opening = useRef(false);
   const title = useId();
+  const closeEditor = () => {
+    opening.current = false;
+    setRequest(null);
+    dialog.current?.close();
+    if (origin.current?.isConnected) origin.current.focus();
+  };
   useEffect(() => {
+    const element = dialog.current;
     const open = (projectId: string) => {
       if (!projectId) return;
+      opening.current = true;
       origin.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       setRequest(previous => ({ projectId, key: (previous?.key ?? 0) + 1 }));
     };
     openEditor = open;
-    return () => { if (openEditor === open) openEditor = undefined; dialog.current?.close(); };
+    return () => {
+      if (openEditor === open) openEditor = undefined;
+      element?.close();
+      if (origin.current?.isConnected) origin.current.focus();
+    };
   }, []);
-  useEffect(() => { if (request && !dialog.current?.open) dialog.current?.showModal(); }, [request]);
+  useEffect(() => {
+    if (!request) return;
+    // Let the host menu unmount and restore its trigger before taking focus.
+    const frame = requestAnimationFrame(() => {
+      if (dialog.current?.open) return;
+      if (document.activeElement instanceof HTMLElement && document.activeElement !== document.body) {
+        origin.current = document.activeElement;
+      }
+      dialog.current?.showModal();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [request]);
   return <dialog ref={dialog} className="bb-project-icons-contextual" aria-labelledby={title}
-    onCancel={event => { event.preventDefault(); dialog.current?.close(); }}
-    onClose={() => { setRequest(null); if (origin.current?.isConnected) origin.current.focus(); }}
-    onKeyDown={event => event.stopPropagation()}>
+    onCancel={event => {
+      if (event.target !== event.currentTarget) return;
+      event.preventDefault(); closeEditor();
+    }}
+    onClose={event => {
+      if (event.target !== event.currentTarget) return;
+      if (!opening.current && origin.current?.isConnected) origin.current.focus();
+    }}
+    onKeyDown={event => {
+      event.stopPropagation();
+      if (event.key === "Escape" && (event.target as HTMLElement).closest("dialog") === event.currentTarget) {
+        event.preventDefault(); closeEditor();
+      }
+    }}>
     <h2 id={title}>Edit project icon</h2>
-    <button type="button" autoFocus onClick={() => dialog.current?.close()}>Close editor</button>
+    <button type="button" autoFocus onClick={closeEditor}>Close editor</button>
     {request && <Settings key={request.key} projectId={request.projectId} />}
   </dialog>;
 }
