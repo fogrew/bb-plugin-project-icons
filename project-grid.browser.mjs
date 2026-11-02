@@ -17,7 +17,7 @@ const sdk = `
   export function useRealtime(_, callback) { useEffect(() => { window.realtime = callback; }, [callback]); }
   export function definePluginApp(register) {
     register({ slots: { settingsSection: ({ component }) => window.Settings = component,
-      experimental_appOverlay: () => {} }, contentScripts: { register: () => {} } });
+      experimental_appOverlay: () => {}, homepageSection: () => {}, experimental_threadAction: () => {} }, contentScripts: { register: () => {} } });
   }
 `;
 await build({
