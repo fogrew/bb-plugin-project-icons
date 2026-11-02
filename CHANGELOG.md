@@ -8,6 +8,11 @@ with the explicit pre-1.0 policy in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Unreleased
 
+### Added
+
+- Edit project icons from the homepage, thread actions menu and open thread header in a shared contextual editor.
+
+
 ## 0.3.0 - 2026-11-02
 
 ### Added
