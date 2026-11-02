@@ -8,7 +8,11 @@ with the explicit pre-1.0 policy in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Unreleased
 
+## 0.3.0 - 2026-11-02
+
 ### Added
+
+- Display the installed plugin version in Project Icons settings.
 
 - Automatic Unicode initials in the sidebar and Settings for projects without saved icons, with deterministic local colors and no stored assignment.
 

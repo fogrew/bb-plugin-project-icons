@@ -9,6 +9,7 @@ import { IconPicker } from "./components/icon-picker";
 import { PngPreview } from "./components/icon-preview";
 import { RemovalControls } from "./components/removal-controls";
 import "./app.css";
+import { version } from "./package.json";
 
 const base = "/api/v1/plugins/project-icons/http";
 const iconUrl = (id: string, revision: number) => `${base}/icon?projectId=${encodeURIComponent(id)}&v=${revision}`;
@@ -32,6 +33,7 @@ function Settings() {
   const project = projects.find((row) => row.id === selected);
   const busy = operation !== null;
   return <div className="bb-project-icons-settings">
+    <p className="bb-project-icons-help">Version {version}</p>
     {loading && <p role="status">Loading projects…</p>}
     {loadError && <div className="bb-project-icons-error">
       <p role="alert">{loadError}</p>

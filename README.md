@@ -4,6 +4,8 @@ Project Icons adds uploaded images beside project names in BB's native thread li
 
 ## Install
 
+Version 0.3.0 is in preparation. See the [release preparation and acceptance report](docs/release-0.3.0.md); its release date and publication remain pending.
+
 ```sh
 bb plugin install https://github.com/fogrew/bb-plugin-project-icons.git
 ```
