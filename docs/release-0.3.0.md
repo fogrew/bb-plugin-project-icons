@@ -1,7 +1,9 @@
 # v0.3.0 release preparation
 
-Status: preparation only. Release date is pending owner authorization.
-Main integration, tagging, publication and the return PR to develop remain owner-controlled.
+Status: owner accepted desktop and mobile testing of installed candidate
+`d032ec2fc4e6b295196ec59066aae7ffd3ef2f14` on 2026-11-02 and authorized
+the v0.3.0 release. This final metadata update records that acceptance;
+earlier preparation notes below retain their source-specific limits.
 
 ## Resumed runtime acceptance (2026-11-02)
 
