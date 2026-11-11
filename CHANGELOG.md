@@ -12,6 +12,8 @@ with the explicit pre-1.0 policy in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 - Edit project icons from the homepage, thread actions menu and open thread header in a shared contextual editor.
 - Suggest favicon, icon and logo images from the project repository on an explicit action; preview and Save remain manual. SVG is rejected.
+- Versioned, bounded read-only `resolveIcon` RPC so other plugins can read a project's manual icon, with an executable consumer example, revision revalidation and a capability matrix ([docs](docs/artwork-interoperability.md)). No peer plugin consumes it yet.
+- Optional **Use Homepage artwork** action that previews Homepage 0.2.7+ image artwork as a snapshot and saves only on explicit Save; absent, disabled or incompatible Homepage, timeouts, unsafe or oversized images and project switches are handled without changing the current icon.
 
 ## 0.3.0 - 2026-11-02
 
