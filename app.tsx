@@ -69,6 +69,7 @@ function ContextualEditor() {
   const [request, setRequest] = useState<{ projectId: string; key: number } | null>(null);
   const dialog = useRef<HTMLDialogElement>(null);
   const origin = useRef<HTMLElement | null>(null);
+  const contextOrigin = useRef<HTMLElement | null>(null);
   const opening = useRef(false);
   const title = useId();
   const closeEditor = () => {
@@ -79,15 +80,32 @@ function ContextualEditor() {
   };
   useEffect(() => {
     const element = dialog.current;
+    const rememberContextOrigin = (event: MouseEvent) => {
+      if (element?.open) return;
+      contextOrigin.current = event.composedPath().find(
+        (node): node is HTMLElement => node instanceof HTMLElement && node.tabIndex >= 0,
+      ) ?? null;
+    };
+    const clearContextOrigin = (event: FocusEvent) => {
+      if (element?.open) return;
+      const inMenu = event.composedPath().some(node => node instanceof HTMLElement &&
+        ["menu", "menuitem", "menuitemcheckbox", "menuitemradio"].includes(node.getAttribute("role") ?? ""));
+      if (!inMenu && event.target !== document.body) contextOrigin.current = null;
+    };
+    document.addEventListener("contextmenu", rememberContextOrigin, true);
+    document.addEventListener("focusin", clearContextOrigin, true);
     const open = (projectId: string) => {
       if (!projectId) return;
       opening.current = true;
-      origin.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      origin.current = contextOrigin.current ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null);
+      contextOrigin.current = null;
       setRequest(previous => ({ projectId, key: (previous?.key ?? 0) + 1 }));
     };
     openEditor = open;
     return () => {
       if (openEditor === open) openEditor = undefined;
+      document.removeEventListener("contextmenu", rememberContextOrigin, true);
+      document.removeEventListener("focusin", clearContextOrigin, true);
       element?.close();
       if (origin.current?.isConnected) origin.current.focus();
     };
@@ -97,7 +115,7 @@ function ContextualEditor() {
     // Let the host menu unmount and restore its trigger before taking focus.
     const frame = requestAnimationFrame(() => {
       if (dialog.current?.open) return;
-      if (document.activeElement instanceof HTMLElement && document.activeElement !== document.body) {
+      if (!origin.current?.isConnected && document.activeElement instanceof HTMLElement && document.activeElement !== document.body) {
         origin.current = document.activeElement;
       }
       dialog.current?.showModal();

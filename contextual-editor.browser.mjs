@@ -139,6 +139,19 @@ try {
   assert.equal(await page.locator("#header").evaluate(el=>el===document.activeElement),true);
   checks.push("host menu teardown before modal open restores focus to its surviving trigger");
 
+  await page.evaluate(() => {
+    const target = document.querySelector("#menu");
+    target.dispatchEvent(new MouseEvent("contextmenu", {bubbles:true,composed:true}));
+    const item = document.createElement("button"); item.setAttribute("role","menuitem");
+    document.body.append(item); item.focus();
+    window.actions.find(a=>a.placement === "menu").item({thread:{projectId:"proj_bbbbbbbbbb"}}).run({});
+    item.remove();
+  });
+  await outer.locator("fieldset").waitFor();
+  await close.click();
+  assert.equal(await page.locator("#menu").evaluate(el=>el===document.activeElement),true);
+  checks.push("contextmenu event origin survives removed menu item and restores focus without intercepting menus");
+
   await open("Header for A");
   await upload("late.png");
   await page.waitForFunction(()=>typeof window.finishDecode==="function");
