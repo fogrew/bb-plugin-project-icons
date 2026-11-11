@@ -1,6 +1,6 @@
 import { mountIcons } from "./lib/sidebar-icons";
 import { AutomaticIcon } from "./components/automatic-icon";
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useId, useState, useSyncExternalStore } from "react";
 import { definePluginApp, useRealtime, useRpc } from "@get-bb/plugin-sdk/app";
 import type { rpcContract } from "./server";
 import { ProjectList } from "./components/project-list";
@@ -14,14 +14,17 @@ import { version } from "./package.json";
 const base = "/api/v1/plugins/project-icons/http";
 const iconUrl = (id: string, revision: number) => `${base}/icon?projectId=${encodeURIComponent(id)}&v=${revision}`;
 
-function Settings() {
+function Settings({ projectId }: { projectId?: string } = {}) {
   const rpc = useRpc<typeof rpcContract>();
   const state = useMemo(() => createSettingsState({
-    list: () => rpc.call("list"),
+    list: async () => {
+      const result = await rpc.call("list");
+      return projectId ? { projects: result.projects.filter(row => row.id === projectId) } : result;
+    },
     save: (input) => rpc.call("save", input),
     remove: (input) => rpc.call("removeWithUndo", input),
     restore: (input) => rpc.call("restore", input),
-  }, () => window.dispatchEvent(new Event("bb-project-icons-changed"))), [rpc]);
+  }, () => window.dispatchEvent(new Event("bb-project-icons-changed"))), [rpc, projectId]);
   const { projects, selected, loading, refreshing, loadError, operation } =
     useSyncExternalStore(state.subscribe, state.getSnapshot);
   const [query, setQuery] = useState("");
@@ -32,19 +35,7 @@ function Settings() {
   useRealtime("changed", () => { void state.refresh(); });
   const project = projects.find((row) => row.id === selected);
   const busy = operation !== null;
-  return <div className="bb-project-icons-settings">
-    <p className="bb-project-icons-help">Version {version}</p>
-    {loading && <p role="status">Loading projects…</p>}
-    {loadError && <div className="bb-project-icons-error">
-      <p role="alert">{loadError}</p>
-      <button type="button" disabled={refreshing} onClick={() => void state.refresh()}>Retry</button>
-    </div>}
-    {!loading && refreshing && <p role="status" className="bb-project-icons-help">Updating projects…</p>}
-    {!loading && !loadError && projects.length === 0 &&
-      <p role="status">No projects yet. Create a project in BB to assign an icon.</p>}
-    {projects.length > 0 && <ProjectList projects={projects} selected={selected}
-      query={query} onQuery={setQuery} onSelect={state.select} iconUrl={iconUrl}>
-    {project && <fieldset className="bb-project-icons-editor">
+  const editor = project && <fieldset className="bb-project-icons-editor">
       <legend>Icon for {project.name}</legend>
       <div className="bb-project-icons-preview">
         {project.revision !== null ? <PngPreview url={iconUrl(project.id, project.revision)} label="Current project icon" /> : <><AutomaticIcon id={project.id} name={project.name} /><span>Automatic initials</span></>}
@@ -53,9 +44,107 @@ function Settings() {
       </div>
       <IconPicker key={project.id} project={project} state={state} busy={busy} />
       <RemovalControls project={project} state={state} />
-    </fieldset>}
-    </ProjectList>}
+    </fieldset>;
+  return <div className="bb-project-icons-settings">
+    <p className="bb-project-icons-help">Version {version}</p>
+    {loading && <p role="status">Loading projects…</p>}
+    {loadError && <div className="bb-project-icons-error">
+      <p role="alert">{loadError}</p>
+      <button type="button" disabled={refreshing} onClick={() => void state.refresh()}>Retry</button>
+    </div>}
+    {!loading && refreshing && <p role="status" className="bb-project-icons-help">Updating projects…</p>}
+    {!loading && !loadError && !projectId && projects.length === 0 &&
+      <p role="status">No projects yet. Create a project in BB to assign an icon.</p>}
+    {projectId && !loading && !loadError && !project && <p role="alert">Project is no longer available.</p>}
+    {projectId ? editor : projects.length > 0 && <ProjectList projects={projects} selected={selected}
+      query={query} onQuery={setQuery} onSelect={state.select} iconUrl={iconUrl}>{editor}</ProjectList>}
+
   </div>;
+}
+
+
+let openEditor: ((projectId: string) => void) | undefined;
+
+function ContextualEditor() {
+  const [request, setRequest] = useState<{ projectId: string; key: number } | null>(null);
+  const dialog = useRef<HTMLDialogElement>(null);
+  const origin = useRef<HTMLElement | null>(null);
+  const contextOrigin = useRef<HTMLElement | null>(null);
+  const opening = useRef(false);
+  const title = useId();
+  const closeEditor = () => {
+    opening.current = false;
+    setRequest(null);
+    dialog.current?.close();
+    if (origin.current?.isConnected) origin.current.focus();
+  };
+  useEffect(() => {
+    const element = dialog.current;
+    const rememberContextOrigin = (event: MouseEvent) => {
+      if (element?.open) return;
+      contextOrigin.current = event.composedPath().find(
+        (node): node is HTMLElement => node instanceof HTMLElement && node.tabIndex >= 0,
+      ) ?? null;
+    };
+    const clearContextOrigin = (event: FocusEvent) => {
+      if (element?.open) return;
+      const inMenu = event.composedPath().some(node => node instanceof HTMLElement &&
+        ["menu", "menuitem", "menuitemcheckbox", "menuitemradio"].includes(node.getAttribute("role") ?? ""));
+      if (!inMenu && event.target !== document.body) contextOrigin.current = null;
+    };
+    document.addEventListener("contextmenu", rememberContextOrigin, true);
+    document.addEventListener("focusin", clearContextOrigin, true);
+    const open = (projectId: string) => {
+      if (!projectId) return;
+      opening.current = true;
+      origin.current = contextOrigin.current ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null);
+      contextOrigin.current = null;
+      setRequest(previous => ({ projectId, key: (previous?.key ?? 0) + 1 }));
+    };
+    openEditor = open;
+    return () => {
+      if (openEditor === open) openEditor = undefined;
+      document.removeEventListener("contextmenu", rememberContextOrigin, true);
+      document.removeEventListener("focusin", clearContextOrigin, true);
+      element?.close();
+      if (origin.current?.isConnected) origin.current.focus();
+    };
+  }, []);
+  useEffect(() => {
+    if (!request) return;
+    // Let the host menu unmount and restore its trigger before taking focus.
+    const frame = requestAnimationFrame(() => {
+      if (dialog.current?.open) return;
+      if (!origin.current?.isConnected && document.activeElement instanceof HTMLElement && document.activeElement !== document.body) {
+        origin.current = document.activeElement;
+      }
+      dialog.current?.showModal();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [request]);
+  return <dialog ref={dialog} className="bb-project-icons-contextual" aria-labelledby={title}
+    onCancel={event => {
+      if (event.target !== event.currentTarget) return;
+      event.preventDefault(); closeEditor();
+    }}
+    onClose={event => {
+      if (event.target !== event.currentTarget) return;
+      if (!opening.current && origin.current?.isConnected) origin.current.focus();
+    }}
+    onKeyDown={event => {
+      event.stopPropagation();
+      if (event.key === "Escape" && (event.target as HTMLElement).closest("dialog") === event.currentTarget) {
+        event.preventDefault(); closeEditor();
+      }
+    }}>
+    <h2 id={title}>Edit project icon</h2>
+    <button type="button" autoFocus onClick={closeEditor}>Close editor</button>
+    {request && <Settings key={request.key} projectId={request.projectId} />}
+  </dialog>;
+}
+
+function HomepageIconAction({ projectId }: { projectId: string | null }) {
+  return projectId ? <button type="button" onClick={() => openEditor?.(projectId)}>Edit icon</button> : null;
 }
 
 function SidebarUpdates() {
@@ -67,5 +156,13 @@ function SidebarUpdates() {
 export default definePluginApp((app) => {
   app.slots.settingsSection({ id: "icons", title: "Project icons", description: "Choose an image for each project in the native sidebar.", component: Settings });
   app.slots.experimental_appOverlay({ id: "sidebar-updates", component: SidebarUpdates });
+  app.slots.homepageSection({ id: "edit-icon", title: "Project icon", component: HomepageIconAction });
+  app.slots.experimental_appOverlay({ id: "icon-editor", component: ContextualEditor });
+  for (const placement of ["menu", "header"] as const) {
+    app.slots.experimental_threadAction({
+      id: `edit-project-icon-${placement}`, title: "Edit project icon", icon: "Image", group: "project-icons", placement,
+      item: ({ thread }) => ({ label: "Edit project icon", icon: "Image", run: () => openEditor?.(thread.projectId) }),
+    });
+  }
   app.contentScripts.register({ id: "sidebar-icons", mount: ({ signal }) => mountIcons(signal) });
 });

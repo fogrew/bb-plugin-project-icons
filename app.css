@@ -82,3 +82,6 @@
 .bb-project-icons-viewer-toolbar h2 { margin: 0; font: inherit; overflow-wrap: anywhere; }
 .bb-project-icons-viewer-toolbar button { min-width: 44px; min-height: 44px; }
 .bb-project-icons-viewer .bb-project-icons-viewer-image { display: block; width: 100%; height: auto; aspect-ratio: 1; object-fit: contain; background: conic-gradient(#ccc 25%, #fff 0 50%, #ccc 0 75%, #fff 0) 0 0 / 16px 16px; }
+
+.bb-project-icons-contextual { width: min(760px, 94vw); max-height: 90vh; overflow: auto; padding: 24px; color: inherit; background: var(--background, #202020); border: 1px solid #777; border-radius: 12px; }
+.bb-project-icons-contextual::backdrop { background: #0008; }
