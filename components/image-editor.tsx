@@ -7,11 +7,13 @@ import { clampCrop, decodeImage, defaultCrop, drawIcon, offsetBounds, type Crop 
 import { usePngDraft } from "./use-png-draft";
 import { DraftOutput } from "./draft-output";
 import { RepositoryIcons, type RepositoryApi } from "./repository-icons";
+import { PeerArtwork, type PeerArtworkApi } from "./peer-artwork";
 
 export type EditorProps = {
   project: Project; state: ReturnType<typeof createSettingsState>; busy: boolean;
   registerCancel?: (cancel: () => void) => () => void;
   repository?: RepositoryApi;
+  peerArtwork?: PeerArtworkApi;
 };
 
 export function ImageEditor(props: EditorProps) {
@@ -57,6 +59,8 @@ export function ImageEditor(props: EditorProps) {
   }}>
     <ImageInput busy={busy} inputRef={input} onFiles={files => void upload(files)}>
     {props.repository && <RepositoryIcons api={props.repository} projectId={project.id} busy={busy} epoch={() => epoch.current} onFile={file => void upload([file])} />}
+    {props.peerArtwork && <PeerArtwork api={props.peerArtwork} projectId={project.id} busy={busy} replaces={project.revision !== null}
+      epoch={() => epoch.current} onFile={file => void upload([file])} />}
     {inputError && <p role="alert">{inputError}</p>}
     <DraftOutput draft={png} name={project.name} busy={busy} focus={focus}>
       {image && <fieldset disabled={busy} className="bb-project-icons-crop-controls">

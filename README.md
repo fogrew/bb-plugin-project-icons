@@ -44,6 +44,10 @@ Recent emoji contain at most 12 known catalog IDs, recorded only after a confirm
 
 All sources retain normalized PNG storage. The accepted server validates PNG structure, CRC and decoded pixels independently; see [PNG validation](docs/png-validation.md). Existing assignments remain compatible.
 
+## Plugin interoperability
+
+Other plugins can read a project's manually assigned icon through the versioned read-only `resolveIcon` RPC, and the image editor can import Homepage artwork as a previewed snapshot with **Use Homepage artwork**. See [Plugin artwork interoperability](docs/artwork-interoperability.md) for the capability matrix, contract, precedence and evidence boundaries. No peer plugin consumes Project Icons today.
+
 ## Compatibility
 
 Use the current or enlarged draft PNG button to inspect it in a modal preview. Close preview or Escape returns to the editor without saving or cancelling its draft. The checkerboard shows transparency; the close control stays above the image. See [preview validation and host limitations](docs/png-preview.md).
