@@ -17,7 +17,7 @@ const host = (sdkProjects) => {
 
 test("selection ranks, bounds and rejects unsafe or ignored paths", () => {
   const paths = [
-    "node_modules/pkg/logo.png", "../escape/logo.png", "/abs/logo.png", "a\b/logo.png", "public/favicon.png", "docs/logo.svg",
+    "node_modules/pkg/logo.png", "../escape/logo.png", "/abs/logo.png", "a\b/logo.png", "a/b:stream/logo.png", "ab/logo.png", "public/favicon.png", "docs/logo.svg",
     "src/deep/er/than/eight/levels/of/dirs/logo.png", "assets/logo.webp", "assets/photo.png", "assets/icon.ico", "icon.jpg",
     "public/favicon.png", ...Array.from({ length: 30 }, (_, i) => `img/logo-${i}.png`),
   ];
@@ -60,17 +60,23 @@ test("readCandidate validates path, size, encoding and content", async () => {
   const h = host({ fileContent: async () => read.value });
   const good = await h.call("readCandidate", { projectId, path: "public/favicon.png" });
   assert.deepEqual([good.mimeType, good.sizeBytes], ["image/png", png.length]);
-  for (const path of ["../secret.png", "/etc/passwd.png", "a/../b.png", "notes.txt", "logo.svg", "C:/x.png"]) {
-    await assert.rejects(h.call("readCandidate", { projectId, path }), undefined, path);
+  for (const path of ["../secret.png", "/etc/passwd.png", "a/../b.png", "notes.txt", "logo.svg", "C:/x.png", "node_modules/pkg/logo.png", "photo.png"]) {
+    await assert.rejects(h.call("readCandidate", { projectId, path }), /Unsupported image path/, path);
   }
   read.value = { ...read.value, sizeBytes: 3 * 1024 * 1024 };
-  await assert.rejects(h.call("readCandidate", { projectId, path: "big.png" }));
+  await assert.rejects(h.call("readCandidate", { projectId, path: "logo-big.png" }), /larger than 2 MB/);
   read.value = { ...read.value, sizeBytes: 10, content: Buffer.from("<svg/>").toString("base64") };
-  await assert.rejects(h.call("readCandidate", { projectId, path: "fake.png" }));
+  await assert.rejects(h.call("readCandidate", { projectId, path: "logo-fake.png" }), /not a supported image/);
   read.value = { content: "<svg/>", contentEncoding: "utf8", mimeType: "image/svg+xml", sizeBytes: 6 };
-  await assert.rejects(h.call("readCandidate", { projectId, path: "text.png" }));
+  await assert.rejects(h.call("readCandidate", { projectId, path: "logo-text.png" }), /Not an image file/);
   read.value = { content: png.toString("base64"), contentEncoding: "base64", mimeType: "image/png", sizeBytes: png.length };
-  await assert.rejects(h.call("readCandidate", { projectId, path: "mismatch.jpg" }));
-  await assert.rejects(h.call("readCandidate", { projectId: "proj_cccccccccc", path: "logo.png" }));
+  await assert.rejects(h.call("readCandidate", { projectId, path: "logo-mismatch.jpg" }), /not a supported image/);
+  await assert.rejects(h.call("readCandidate", { projectId: "proj_cccccccccc", path: "logo.png" }), /Project not found/);
+  await h.dispose();
+});
+
+test("readCandidate hides host error details", async () => {
+  const h = host({ fileContent: async () => { throw new Error("EACCES /home/secret/logo.png"); } });
+  await assert.rejects(h.call("readCandidate", { projectId, path: "logo.png" }), error => error.message === "Image could not be read");
   await h.dispose();
 });

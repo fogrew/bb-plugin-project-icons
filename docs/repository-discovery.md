@@ -11,3 +11,5 @@ The image editor has a **Find icons in repository** button. Nothing is searched 
 ## Verification boundary
 
 Covered by unit tests (`discovery.test.mjs`) and a real-Chrome fixture (`repository-icons.browser.mjs`) with SDK and RPC mocked. Not verified live in BB: real multi-logo repositories, remote hosts, symlink escapes (containment is the host API's responsibility; the plugin cannot observe symlinks) and the host's own size limits (`fileContent` reports `sizeBytes` after the read, so an oversized file is read by the host before being rejected).
+
+An unknown project makes `discover` and `readCandidate` fail with "Project not found". Host error details are logged, not returned to the UI.

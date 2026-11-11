@@ -21,7 +21,7 @@ export function extensionOf(path: string): string {
 
 export function isSafeRelativePath(path: string): boolean {
   if (!path || path.length > MAX_PATH_LENGTH) return false;
-  if (path.startsWith("/") || path.startsWith("~") || /^[A-Za-z]:/.test(path)) return false;
+  if (path.startsWith("/") || path.startsWith("~")) return false;
   if (/[\\\u0000-\u001f\u007f]/.test(path)) return false;
   const segments = path.split("/");
   if (segments.length > MAX_DEPTH) return false;
@@ -30,6 +30,10 @@ export function isSafeRelativePath(path: string): boolean {
 
 export function isAcceptedExtension(path: string): boolean {
   return ACCEPTED.has(extensionOf(path));
+}
+
+export function isDiscoverablePath(path: string): boolean {
+  return isSafeRelativePath(path) && !inIgnoredDirectory(path) && NAME_PATTERN.test(path.slice(path.lastIndexOf("/") + 1));
 }
 
 function inIgnoredDirectory(path: string): boolean {

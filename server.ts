@@ -3,12 +3,13 @@ import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import { decodePng } from "./lib/png-validation";
 import {
-  MAX_IMAGE_BYTES, SEARCH_QUERIES, extensionMatchesFormat, isAcceptedExtension, isSafeRelativePath, selectCandidates, sniffImage,
+  MAX_IMAGE_BYTES, SEARCH_QUERIES, extensionMatchesFormat, isAcceptedExtension, isDiscoverablePath, selectCandidates, sniffImage,
 } from "./lib/icon-discovery";
 
 const idSchema = z.string().regex(/^proj_[a-z0-9]{10,32}$/);
 const imageSchema = z.string().regex(/^[A-Za-z0-9+/]+={0,2}$/).max(90000);
 const UNDO_MS = 15000;
+const DISCOVERY_TIMEOUT_MS = 8000;
 const MAX_UNDO_OFFERS = 16;
 const undoSchema = z.object({ token: z.string().uuid(), expiresAt: z.number() });
 export const rpcContract = defineRpcContract({
@@ -112,13 +113,14 @@ export default function plugin(bb: BbPluginApi) {
     bb.realtime.publish("changed", { projectId });
     return { removed, undo };
   });
-  const DISCOVERY_TIMEOUT_MS = 8000;
-  const withTimeout = async <T>(work: (signal: AbortSignal) => Promise<T>): Promise<T> => {
-    const signal = AbortSignal.timeout(DISCOVERY_TIMEOUT_MS);
-    return Promise.race([
-      work(signal),
-      new Promise<never>((_, reject) => signal.addEventListener("abort", () => reject(new Error("Repository search timed out")), { once: true })),
-    ]);
+    const withTimeout = async <T>(work: (signal: AbortSignal) => Promise<T>): Promise<T> => {
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const expired = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => { controller.abort(); reject(new Error("Repository search timed out")); }, DISCOVERY_TIMEOUT_MS);
+    });
+    try { return await Promise.race([work(controller.signal), expired]); }
+    finally { clearTimeout(timer); }
   };
   bb.rpc.register(rpcContract, {
     list: async () => {
@@ -155,9 +157,12 @@ export default function plugin(bb: BbPluginApi) {
       }
     },
     readCandidate: async ({ projectId, path }) => {
-      if (!isSafeRelativePath(path) || !isAcceptedExtension(path)) throw new Error("Unsupported image path");
+      if (!isDiscoverablePath(path) || !isAcceptedExtension(path)) throw new Error("Unsupported image path");
       if (!(await projectExists(projectId))) throw new Error("Project not found");
-      const file = await withTimeout(signal => bb.sdk.projects.fileContent({ projectId, path, signal }));
+      const file = await withTimeout(signal => bb.sdk.projects.fileContent({ projectId, path, signal })).catch(error => {
+        bb.log.warn(`Repository image read failed: ${error instanceof Error ? error.message : String(error)}`);
+        throw new Error("Image could not be read");
+      });
       if (file.sizeBytes > MAX_IMAGE_BYTES) throw new Error("Image is larger than 2 MB");
       if (file.contentEncoding !== "base64") throw new Error("Not an image file");
       const bytes = Buffer.from(file.content, "base64");
