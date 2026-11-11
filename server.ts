@@ -120,14 +120,16 @@ export default function plugin(bb: BbPluginApi) {
     return { removed, undo };
   });
   class TimedOut extends Error {}
-  const withTimeout = async <T>(work: (signal: AbortSignal) => Promise<T>, ms = DISCOVERY_TIMEOUT_MS): Promise<T> => {
+  const withTimeout = async <T>(work: (signal: AbortSignal) => Promise<T>, ms = DISCOVERY_TIMEOUT_MS, parent?: AbortSignal): Promise<T> => {
     const controller = new AbortController();
+    const relay = () => controller.abort();
+    if (parent?.aborted) relay(); else parent?.addEventListener("abort", relay, { once: true });
     let timer: ReturnType<typeof setTimeout> | undefined;
     const expired = new Promise<never>((_, reject) => {
       timer = setTimeout(() => { controller.abort(); reject(new TimedOut("Repository search timed out")); }, ms);
     });
     try { return await Promise.race([work(controller.signal), expired]); }
-    finally { clearTimeout(timer); }
+    finally { clearTimeout(timer); parent?.removeEventListener("abort", relay); }
   };
   bb.rpc.register(rpcContract, {
     list: async () => {
@@ -180,13 +182,13 @@ export default function plugin(bb: BbPluginApi) {
     },
     remove: async ({ projectId }) => ({ removed: (await remove(projectId, false)).removed }),
     removeWithUndo: ({ projectId }) => remove(projectId, true),
-    resolveIcon: ({ version, projectId, ifRevision, trail }) => {
+    resolveIcon: async ({ version, projectId, ifRevision, trail }) => {
       if (version !== ICON_CONTRACT_VERSION) return { version: ICON_CONTRACT_VERSION, status: "unsupported-version" as const, supportedVersions: [ICON_CONTRACT_VERSION] };
       if (trail?.includes(PLUGIN_ID)) return { version: ICON_CONTRACT_VERSION, status: "recursive" as const, projectId };
+      const unknown = { version: ICON_CONTRACT_VERSION, status: "unknown-project" as const, projectId };
+      if (!idSchema.safeParse(projectId).success) return unknown;
+      if (!(await projectExists(projectId))) return unknown;
       return serialize(async () => {
-        if (!idSchema.safeParse(projectId).success || !(await projectExists(projectId))) {
-          return { version: ICON_CONTRACT_VERSION, status: "unknown-project" as const, projectId };
-        }
         const revision = (await readIndex())[projectId];
         const base64 = revision === undefined ? null : await bb.storage.kv.get<string>(`image:${projectId}`);
         if (revision === undefined || !base64) return { version: ICON_CONTRACT_VERSION, status: "missing" as const, projectId };
@@ -199,7 +201,7 @@ export default function plugin(bb: BbPluginApi) {
       });
     },
     peerArtwork: async ({ projectId }, context) => {
-      if (context.experimental_caller.kind !== "client") throw new Error("Peer artwork is available to the Project Icons app only");
+      if (context.experimental_caller.kind !== "client") throw new Error("Peer artwork is not available to other plugins");
       if (!(await projectExists(projectId))) throw new Error("Project not found");
       const unavailable = (reason: "timeout" | "error" | "malformed") => ({ status: "unavailable" as const, reason });
       try {
@@ -214,9 +216,9 @@ export default function plugin(bb: BbPluginApi) {
           if (reply.data.kind === "missing") return { status: "none" as const };
           if (reply.data.kind === "glyph") return { status: "glyph" as const };
           return { status: "image" as const, pluginVersion: availability.version };
-        }, PEER_TIMEOUT_MS);
+        }, PEER_TIMEOUT_MS, context.experimental_signal);
       } catch (error) {
-        bb.log.warn(`Peer artwork unavailable: ${error instanceof Error ? error.message : String(error)}`);
+        bb.log.warn(`Peer artwork unavailable (${error instanceof Error ? error.constructor.name : "unknown"})`);
         return unavailable(error instanceof TimedOut ? "timeout" : "error");
       }
     },

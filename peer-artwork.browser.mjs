@@ -60,6 +60,7 @@ const server = createServer(async (req, res) => {
     peerRequests.push(req.url);
     if (peerRoute === "png") return res.writeHead(200, { "Content-Type": "image/png" }).end(image);
     if (peerRoute === "svg") return res.writeHead(200, { "Content-Type": "image/svg+xml" }).end("<svg xmlns='http://www.w3.org/2000/svg'/>");
+    if (peerRoute === "corrupt") return res.writeHead(200, { "Content-Type": "image/png" }).end(Buffer.concat([image.subarray(0, 8), Buffer.alloc(64, 7)]));
     if (peerRoute === "big") return res.writeHead(200, { "Content-Type": "image/png" }).end(Buffer.alloc(3 * 1024 * 1024, 1));
     return res.writeHead(404).end();
   }
@@ -136,6 +137,12 @@ try {
   }
   checks.push("SVG, oversized and absent images are rejected before the editor");
 
+  await page.request.get(`${origin}/__route/corrupt`);
+  await use.click();
+  await page.getByRole("alert").filter({ hasText: "Could not read image" }).waitFor();
+  assert.equal(await page.getByText("Previewing a snapshot of Homepage artwork.").count(), 0);
+  checks.push("a corrupt image with valid magic bytes shows the decode error and no provenance note");
+
   await page.request.get(`${origin}/__route/png`);
   await page.evaluate(() => { window.gate = () => new Promise(done => { window.release = done; }); });
   await page.evaluate(() => window.show("proj_aaaaaaaaaa"));
@@ -146,7 +153,7 @@ try {
   await page.evaluate(() => window.show("proj_bbbbbbbbbb"));
   await page.getByText("Icon for Beta").waitFor();
   await page.evaluate(() => window.release());
-  await page.waitForTimeout(300);
+  await page.evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done))));
   assert.equal(await page.getByRole("button", { name: "Save", exact: true }).count(), 0);
   assert.equal(peerRequests.length, before, "late probe result for the previous project fetches nothing");
   checks.push("a delayed peer answer after a project switch is discarded");

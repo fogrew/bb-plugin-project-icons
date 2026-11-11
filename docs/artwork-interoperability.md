@@ -33,7 +33,7 @@ Input (strict; unknown keys are rejected): `version` (integer, required), `proje
 | --- | --- |
 | `found` | `projectId`, `revision`, `source: "manual"`, `theme: "any"`, `mimeType: "image/png"`, `width: 64`, `height: 64`, `sizeBytes`, `base64` (PNG bytes, at most 64 KiB) and `urlPath` |
 | `not-modified` | `ifRevision` equals the current revision; keep your cached copy |
-| `missing` | The project has no manually assigned image. Automatic initials, glyph and emoji presets are stored as PNG and count as assigned; initials shown without a saved icon are never exported |
+| `missing` | The project has no saved image. Glyph, emoji and initials presets that were saved as icons are exported like any image; automatic initials that were never saved are not |
 | `unknown-project` | The id is malformed or not a BB project |
 | `unsupported-version` | `version` is not 1; `supportedVersions` lists what is accepted |
 | `recursive` | `trail` already contains `project-icons` |
@@ -52,9 +52,9 @@ The executable consumer example is [`examples/artwork-consumer.ts`](../examples/
 
 The image editor has a **Use Homepage artwork** button. Nothing is probed until it is pressed.
 
-1. The server RPC `peerArtwork` (app-only; plugin callers are rejected) lists plugins, requires `homepage` 0.2.7 or newer that is enabled and `running` or `degraded`, and calls its `getProjectArtwork` with a 5 s timeout. Replies are validated; anything else is `malformed`.
+1. The server RPC `peerArtwork` (plugin callers are rejected; any non-plugin client may call it) lists plugins, requires `homepage` 0.2.7 or newer that is enabled and `running` or `degraded`, and calls its `getProjectArtwork` with a 5 s timeout. Replies are validated; anything else is `malformed`.
 2. Outcomes: `unavailable` (`not-installed`, `disabled`, `incompatible`, `not-running`, `timeout`, `error`, `malformed`), `none`, `glyph` and `image`. A glyph is an SVG and is never rendered or imported.
-3. For `image`, the browser fetches `/api/v1/plugins/homepage/http/project-icon?projectId=` with its own session (`same-origin`, redirects refused). The body is read with a 2 MB cap, must start with PNG, JPEG or WebP magic bytes, and is handed to the existing editor as a file: the normal decoder, crop, 64 x 64 PNG rasterization and 64 KiB validation apply. SVG, ICO and GIF are rejected.
+3. For `image`, the browser fetches `/api/v1/plugins/homepage/http/project-icon?projectId=` with its own session (`same-origin`, redirects refused). The body is read with a 2 MB cap and a 10 s timeout, must start with PNG, JPEG or WebP magic bytes, and is handed to the existing editor as a file: the normal decoder, crop, 64 x 64 PNG rasterization and 64 KiB validation apply. SVG, ICO and GIF are rejected.
 4. The editor shows the draft with a provenance note. The icon changes only after **Save**; when a manual icon already exists the note says saving replaces it.
 
 Switching project, cancelling the draft, closing the editor or starting another action discards in-flight work (the fetch is aborted and late answers are ignored).
@@ -78,3 +78,4 @@ Switching project, cancelling the draft, closing the editor or starting another 
 
 - Adoption by Homepage (or any consumer) is a separate upstream change.
 - Live verification with an installed Homepage in BB.
+- Decoded pixel-dimension limits for imported images (shared with repository import; the 2 MB cap bounds compressed bytes only).

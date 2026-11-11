@@ -22,9 +22,10 @@ export function ImageEditor(props: EditorProps) {
   const draft = useMemo(() => createDraft<ImageBitmap>(project.id, () => state.getSnapshot().selected), [project.id, state]);
   const [crop, setCrop] = useState<Crop>(defaultCrop);
   const [inputError, setInputError] = useState("");
+  const [fromHomepage, setFromHomepage] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   const epoch = useRef(0);
-  const png = usePngDraft(props, () => { epoch.current += 1; draft.cancel(); setCrop(defaultCrop); setInputError(""); });
+  const png = usePngDraft(props, () => { epoch.current += 1; draft.cancel(); setCrop(defaultCrop); setInputError(""); setFromHomepage(false); });
   const render = (next: Crop) => png.render(canvas => {
     const image = draft.current();
     if (!image) throw new Error("Draft cancelled.");
@@ -36,7 +37,7 @@ export function ImageEditor(props: EditorProps) {
     const bounded = clampCrop(image.width, image.height, next);
     setCrop(bounded); void render(bounded);
   };
-  const upload = async (files: File[]) => {
+  const upload = async (files: File[], homepage = false) => {
     epoch.current += 1;
     if (state.getSnapshot().selected !== project.id) return;
     if (busy || state.getSnapshot().operation) { setInputError("Wait for the current icon operation, then try again."); return; }
@@ -44,6 +45,7 @@ export function ImageEditor(props: EditorProps) {
     try { file = singleImageFile(files); }
     catch { setInputError("Choose one image at a time. The current draft is unchanged."); return; }
     setInputError("");
+    setFromHomepage(homepage);
     setCrop(defaultCrop);
     await png.render(async canvas => {
       if (!await draft.load(() => decodeImage(file))) throw new Error("Draft cancelled.");
@@ -59,8 +61,11 @@ export function ImageEditor(props: EditorProps) {
   }}>
     <ImageInput busy={busy} inputRef={input} onFiles={files => void upload(files)}>
     {props.repository && <RepositoryIcons api={props.repository} projectId={project.id} busy={busy} epoch={() => epoch.current} onFile={file => void upload([file])} />}
-    {props.peerArtwork && <PeerArtwork api={props.peerArtwork} projectId={project.id} busy={busy} replaces={project.revision !== null}
-      epoch={() => epoch.current} onFile={file => void upload([file])} />}
+    {props.peerArtwork && <PeerArtwork api={props.peerArtwork} projectId={project.id} busy={busy}
+      epoch={() => epoch.current} onFile={file => void upload([file], true)} />}
+    {fromHomepage && png.snapshot && <p role="status" className="bb-project-icons-help">
+      Previewing a snapshot of Homepage artwork. Nothing is saved until you press Save{project.revision !== null ? "; saving replaces the current icon" : ""}. Later Homepage changes will not update it.
+    </p>}
     {inputError && <p role="alert">{inputError}</p>}
     <DraftOutput draft={png} name={project.name} busy={busy} focus={focus}>
       {image && <fieldset disabled={busy} className="bb-project-icons-crop-controls">

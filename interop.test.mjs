@@ -41,6 +41,9 @@ test("resolveIcon reports missing, found, not-modified, stale revisions and remo
   assert.equal((await host.call("resolveIcon", resolveInput({ ifRevision: revision }), asPlugin)).revision, next);
   await host.call("remove", { projectId });
   assert.equal((await host.call("resolveIcon", resolveInput({ ifRevision: next }), asPlugin)).status, "missing");
+  const again = (await host.call("save", { projectId, base64: png.toString("base64") })).revision;
+  assert.ok(again > next, "revisions are never reused after removal");
+  assert.equal((await host.call("resolveIcon", resolveInput({ ifRevision: next }), asPlugin)).revision, again);
   await host.dispose();
 });
 
@@ -97,6 +100,33 @@ test("consumer harness resolves through plugins.callRpc with revision caching an
   await consumer.harness.lifecycle.dispose();
 });
 
+test("consumer cache ignores results that were in flight during invalidate and rethrows aborts", async () => {
+  const icons = iconsHost();
+  const gates = [];
+  const consumer = createFakePluginHost({
+    pluginId: "consumer",
+    sdk: { plugins: { callRpc: async ({ method, input, outputSchema, signal }) => {
+      const output = outputSchema.parse(await icons.call(method, input, asPlugin, signal));
+      await new Promise(resolve => gates.push(resolve));
+      return output;
+    } } },
+  });
+  const resolver = createIconResolver(consumer.bb, "consumer", () => 0);
+  const pending = resolver.resolve(projectId);
+  for (let i = 0; i < 200 && !gates.length; i += 1) await new Promise(resolve => setImmediate(resolve));
+  await icons.call("save", { projectId, base64: png.toString("base64") });
+  resolver.invalidate(projectId);
+  gates.shift()();
+  for (let i = 0; i < 200 && !gates.length; i += 1) await new Promise(resolve => setImmediate(resolve));
+  gates.shift()();
+  assert.equal((await pending).kind, "image", "stale pre-invalidation answer is not cached");
+  const controller = new AbortController();
+  const failing = createIconResolver({ sdk: { plugins: { callRpc: async () => { controller.abort(); throw new Error("aborted"); } } } }, "consumer", () => 0);
+  await assert.rejects(failing.resolve(projectId, controller.signal), /aborted/);
+  await icons.dispose();
+  await consumer.harness.lifecycle.dispose();
+});
+
 test("peer availability follows plugin state and minimum version", () => {
   assert.deepEqual(peerAvailability([]), { reason: "not-installed" });
   assert.deepEqual(peerAvailability([peerRow({ enabled: false })]), { reason: "disabled" });
@@ -142,7 +172,7 @@ test("peerArtwork maps Homepage replies and failures to explicit outcomes", asyn
   const host = peerHost({ reply: { kind: "image" } });
   await probe(host);
   assert.deepEqual([host.seen[0].pluginId, host.seen[0].method, host.seen[0].input], ["homepage", "getProjectArtwork", { projectId }]);
-  await assert.rejects(host.call("peerArtwork", { projectId, peer: "homepage" }, asPlugin), /app only/);
+  await assert.rejects(host.call("peerArtwork", { projectId, peer: "homepage" }, asPlugin), /other plugins/);
   await assert.rejects(host.call("peerArtwork", { projectId: "proj_cccccccccc", peer: "homepage" }), /Project not found/);
   await assert.rejects(host.call("peerArtwork", { projectId, peer: "project-icons" }));
   assert.equal(host.seen.length, 1, "rejected calls never reach the peer");
@@ -154,7 +184,8 @@ test("peerArtwork times out a hanging peer", async () => {
   mock.timers.enable({ apis: ["setTimeout"] });
   try {
     const pending = probe(host);
-    for (let i = 0; i < 20; i += 1) await new Promise(resolve => setImmediate(resolve));
+    for (let i = 0; i < 200 && !host.seen.length; i += 1) await new Promise(resolve => setImmediate(resolve));
+    assert.equal(host.seen.length, 1, "peer call started before the clock advances");
     mock.timers.tick(5000);
     assert.deepEqual(await pending, { status: "unavailable", reason: "timeout" });
   } finally { mock.timers.reset(); }
