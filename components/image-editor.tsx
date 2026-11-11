@@ -6,10 +6,12 @@ import { createDraft } from "../lib/image-draft";
 import { clampCrop, decodeImage, defaultCrop, drawIcon, offsetBounds, type Crop } from "../lib/image-processing";
 import { usePngDraft } from "./use-png-draft";
 import { DraftOutput } from "./draft-output";
+import { RepositoryIcons, type RepositoryApi } from "./repository-icons";
 
 export type EditorProps = {
   project: Project; state: ReturnType<typeof createSettingsState>; busy: boolean;
   registerCancel?: (cancel: () => void) => () => void;
+  repository?: RepositoryApi;
 };
 
 export function ImageEditor(props: EditorProps) {
@@ -52,6 +54,7 @@ export function ImageEditor(props: EditorProps) {
     if (event.key === "Escape" && !busy) { event.preventDefault(); png.cancel(); focus(); }
   }}>
     <ImageInput busy={busy} inputRef={input} onFiles={files => void upload(files)}>
+    {props.repository && <RepositoryIcons api={props.repository} projectId={project.id} busy={busy} onFile={file => void upload([file])} />}
     {inputError && <p role="alert">{inputError}</p>}
     <DraftOutput draft={png} name={project.name} busy={busy} focus={focus}>
       {image && <fieldset disabled={busy} className="bb-project-icons-crop-controls">

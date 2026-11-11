@@ -35,6 +35,10 @@ function Settings({ projectId }: { projectId?: string } = {}) {
   useRealtime("changed", () => { void state.refresh(); });
   const project = projects.find((row) => row.id === selected);
   const busy = operation !== null;
+  const repository = useMemo(() => ({
+    discover: (id: string) => rpc.call("discover", { projectId: id }),
+    read: (id: string, path: string) => rpc.call("readCandidate", { projectId: id, path }),
+  }), [rpc]);
   const editor = project && <fieldset className="bb-project-icons-editor">
       <legend>Icon for {project.name}</legend>
       <div className="bb-project-icons-preview">
@@ -42,7 +46,7 @@ function Settings({ projectId }: { projectId?: string } = {}) {
         {projects.some((row) => row.id !== project.id && row.name === project.name) &&
           <small className="bb-project-icons-id">{project.id}</small>}
       </div>
-      <IconPicker key={project.id} project={project} state={state} busy={busy} />
+      <IconPicker key={project.id} project={project} state={state} busy={busy} repository={repository} />
       <RemovalControls project={project} state={state} />
     </fieldset>;
   return <div className="bb-project-icons-settings">
