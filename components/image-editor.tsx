@@ -6,10 +6,12 @@ import { createDraft } from "../lib/image-draft";
 import { clampCrop, decodeImage, defaultCrop, drawIcon, offsetBounds, type Crop } from "../lib/image-processing";
 import { usePngDraft } from "./use-png-draft";
 import { DraftOutput } from "./draft-output";
+import { RepositoryIcons, type RepositoryApi } from "./repository-icons";
 
 export type EditorProps = {
   project: Project; state: ReturnType<typeof createSettingsState>; busy: boolean;
   registerCancel?: (cancel: () => void) => () => void;
+  repository?: RepositoryApi;
 };
 
 export function ImageEditor(props: EditorProps) {
@@ -19,7 +21,8 @@ export function ImageEditor(props: EditorProps) {
   const [crop, setCrop] = useState<Crop>(defaultCrop);
   const [inputError, setInputError] = useState("");
   const input = useRef<HTMLInputElement>(null);
-  const png = usePngDraft(props, () => { draft.cancel(); setCrop(defaultCrop); setInputError(""); });
+  const epoch = useRef(0);
+  const png = usePngDraft(props, () => { epoch.current += 1; draft.cancel(); setCrop(defaultCrop); setInputError(""); });
   const render = (next: Crop) => png.render(canvas => {
     const image = draft.current();
     if (!image) throw new Error("Draft cancelled.");
@@ -32,6 +35,7 @@ export function ImageEditor(props: EditorProps) {
     setCrop(bounded); void render(bounded);
   };
   const upload = async (files: File[]) => {
+    epoch.current += 1;
     if (state.getSnapshot().selected !== project.id) return;
     if (busy || state.getSnapshot().operation) { setInputError("Wait for the current icon operation, then try again."); return; }
     let file: File;
@@ -52,6 +56,7 @@ export function ImageEditor(props: EditorProps) {
     if (event.key === "Escape" && !busy) { event.preventDefault(); png.cancel(); focus(); }
   }}>
     <ImageInput busy={busy} inputRef={input} onFiles={files => void upload(files)}>
+    {props.repository && <RepositoryIcons api={props.repository} projectId={project.id} busy={busy} epoch={() => epoch.current} onFile={file => void upload([file])} />}
     {inputError && <p role="alert">{inputError}</p>}
     <DraftOutput draft={png} name={project.name} busy={busy} focus={focus}>
       {image && <fieldset disabled={busy} className="bb-project-icons-crop-controls">

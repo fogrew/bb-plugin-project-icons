@@ -11,7 +11,7 @@ with the explicit pre-1.0 policy in [CONTRIBUTING.md](CONTRIBUTING.md).
 ### Added
 
 - Edit project icons from the homepage, thread actions menu and open thread header in a shared contextual editor.
-
+- Suggest favicon, icon and logo images from the project repository on an explicit action; preview and Save remain manual. SVG is rejected.
 
 ## 0.3.0 - 2026-11-02
 

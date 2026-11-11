@@ -85,3 +85,6 @@
 
 .bb-project-icons-contextual { width: min(760px, 94vw); max-height: 90vh; overflow: auto; padding: 24px; color: inherit; background: var(--background, #202020); border: 1px solid #777; border-radius: 12px; }
 .bb-project-icons-contextual::backdrop { background: #0008; }
+.bb-project-icons-repository { display: grid; gap: 6px; margin-block: 8px; }
+.bb-project-icons-candidates { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.bb-project-icons-candidates button { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
