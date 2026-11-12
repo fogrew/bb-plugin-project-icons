@@ -62,12 +62,18 @@ await build({
     b.onLoad({filter:/.*/,namespace:"fixture"},()=>({contents:sdk,loader:"js",resolveDir:process.cwd()}));
   }}],
 });
+const hostReset = `
+:root{--background:#1c1c24;--foreground:#eee;--border:#888;--ring:#80bfff;--muted:#303030;--muted-foreground:#bbb;--accent:#353535;--accent-foreground:#fff;--destructive:#ff9999;color-scheme:dark}
+*,::before,::after{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--background);color:var(--foreground);font:14px system-ui}
+button{background:transparent;border:0;font:inherit;color:inherit}
+dialog{margin:0}`;
 const png = new PNG({width:64,height:64});
 png.data.fill(255);
 const image = PNG.sync.write(png);
 const server = createServer(async(req,res)=>{
   if(req.url.includes("/icon?")) return res.writeHead(200,{"Content-Type":"image/png"}).end(image);
-  if(req.url === "/") return res.writeHead(200,{"Content-Type":"text/html"}).end('<!doctype html><html><link rel="stylesheet" href="/fixture.css"><div id="root"></div><script type="module" src="/fixture.js"></script></html>');
+  if(req.url === "/") return res.writeHead(200,{"Content-Type":"text/html"}).end(`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${hostReset}</style><link rel="stylesheet" href="/fixture.css"><div id="root"></div><script type="module" src="/fixture.js"></script></html>`);
   if(["/fixture.js","/fixture.css"].includes(req.url)) return res.writeHead(200,{"Content-Type":req.url.endsWith(".js")?"text/javascript":"text/css"}).end(await readFile(resolve(output,req.url.slice(1))));
   res.writeHead(404).end();
 });
@@ -100,6 +106,53 @@ try {
     await close.click();
   }
   checks.push("all three SDK entries save only their target ID despite identical names and unrelated active context");
+
+  const geometry = () => outer.evaluate(el => {
+    const box = el.getBoundingClientRect(), view = document.documentElement;
+    return {left: box.left, top: box.top, right: view.clientWidth - box.right, bottom: view.clientHeight - box.bottom, width: box.width, height: box.height, scroll: el.scrollHeight > el.clientHeight};
+  });
+  const styled = locator => locator.evaluate(el => {
+    const style = getComputedStyle(el);
+    return {border: parseFloat(style.borderTopWidth), background: style.backgroundColor, padding: parseFloat(style.paddingLeft)};
+  });
+  for(const [width,height] of [[320,568],[768,1024],[1440,900]]) {
+    await page.setViewportSize({width,height});
+    await open("Menu for B");
+    const box = await geometry();
+    assert.ok(box.left >= 0 && box.top >= 0 && box.right >= 0 && box.bottom >= 0, `dialog inside ${width}x${height}: ${JSON.stringify(box)}`);
+    assert.ok(Math.abs(box.left - box.right) <= 1 && Math.abs(box.top - box.bottom) <= 1, `dialog centered at ${width}x${height}: ${JSON.stringify(box)}`);
+    for(const control of [close, outer.getByRole("tab",{name:"Image",exact:true}), outer.getByRole("button",{name:"Find icons in repository"})]) {
+      const look = await styled(control);
+      assert.ok(look.border > 0 && look.padding > 0 && look.background !== "rgba(0, 0, 0, 0)", `styled control at ${width}x${height}: ${JSON.stringify(look)}`);
+    }
+    assert.notEqual((await styled(outer)).background, "rgba(0, 0, 0, 0)");
+    const closeBox = await close.boundingBox();
+    assert.ok(closeBox.x >= box.left && closeBox.x + closeBox.width <= box.left + box.width);
+    await page.mouse.click(box.left + 12, box.top + 12);
+    assert.equal(await outer.evaluate(el=>el.open),true);
+    const field = await outer.getByRole("button",{name:"Find icons in repository"}).boundingBox();
+    await page.mouse.move(field.x + 4, field.y + 4);
+    await page.mouse.down();
+    await page.mouse.move(1, 1);
+    await page.mouse.up();
+    assert.equal(await outer.evaluate(el=>el.open),true);
+    await page.mouse.click(1, 1);
+    await outer.waitFor({state:"hidden"});
+    await open("Menu for B");
+    await page.keyboard.press("Escape");
+    await outer.waitFor({state:"hidden"});
+    await open("Menu for B");
+    await close.click();
+    await outer.waitFor({state:"hidden"});
+  }
+  await page.setViewportSize({width:320,height:320});
+  await open("Menu for B");
+  const small = await geometry();
+  assert.ok(small.top >= 0 && small.bottom >= 0 && small.scroll, `dialog fits and scrolls in short viewport: ${JSON.stringify(small)}`);
+  await close.click();
+  await page.setViewportSize({width:1280,height:720});
+  checks.push("dialog is centered, inside the viewport at 320/768/1440 px and scrolls in a short one under a host CSS reset; close, tab and action buttons keep visible styling");
+  checks.push("editor closes by close button, Escape and backdrop click, and ignores clicks inside the dialog padding and drags that end on the backdrop");
 
   await open("Menu for B");
   await upload();

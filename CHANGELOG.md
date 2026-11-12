@@ -14,6 +14,10 @@ with the explicit pre-1.0 policy in [CONTRIBUTING.md](CONTRIBUTING.md).
 - Projects whose icon was removed before this version have no provenance record and become eligible for automatic adoption; turn off **Use artwork from installed plugins automatically** in Settings to keep them without an icon.
 - Repository icon discovery recognizes `app-icon`, `apple-touch-icon`, `android-chrome-*`, `ic_launcher`, size-only names in icon directories (`src-tauri/icons`, `mipmap-*`, `*.appiconset`) and `build/icon.png`, ranks larger square sizes and higher Android densities first, and runs three more host queries (`apple-touch`, `android-chrome`, `ic_launcher`). Safety limits are unchanged; `.claude`, `bin` and `obj` are now skipped.
 
+### Fixed
+
+- The contextual editor dialog is centered with explicit positioning, fits 320 px viewports, and its close button and chrome use host theme tokens outside the Settings page. Clicking the backdrop now closes it, and the browser fixture runs under a host-like CSS reset. Live BB verification is pending.
+
 ### Added
 
 - Automatic adoption of artwork from installed Homepage, Cursor Sidebar, Nest and Chat Sidebar plugins for projects without an icon, refreshed while the icon is still auto-imported and the same plugin's artwork changes. Saving or removing an icon marks the project manual for good; Settings shows each project's source, a global on/off toggle, and **Re-enable automatic icons** in the editor. Peer replies are version-checked, bounded and re-rendered to 64 x 64 PNGs; the peer RPCs are undocumented and found in source ([docs](docs/artwork-interoperability.md)).
