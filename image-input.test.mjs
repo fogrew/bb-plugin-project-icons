@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createFileInputEvents, ownsImagePaste, singleImageFile, transferFiles } from "./lib/image-input.ts";
 import { decodeImage } from "./lib/image-processing.ts";
+import { bmpEntry, buildIco, pngEntry } from "./test-fixtures/ico.mjs";
+import { transparentPng } from "./test-fixtures/png.mjs";
 
 const png = new File(["png"], "icon.png", { type: "image/png" });
 const transfer = (files = [png]) => ({
@@ -117,4 +119,44 @@ test("paste ownership requires focus in the area and excludes text editing", () 
   assert.equal(ownsImagePaste(area, outside), false);
   area.ownerDocument.activeElement = text;
   assert.equal(ownsImagePaste(area, text), false);
+});
+
+test("shared decoder validates ICO files and decodes only the chosen entry", async () => {
+  const previous = globalThis.createImageBitmap;
+  const decoded = [];
+  globalThis.createImageBitmap = async (source) => { decoded.push(source); return source; };
+  const pngs = [pngEntry(16), pngEntry(48)];
+  const bmps = [bmpEntry(32), bmpEntry(16)];
+  const ico = (entries, name = "favicon.ico", type = "image/x-icon") => new File([buildIco(entries)], name, { type });
+  try {
+    const fromPng = await decodeImage(ico(pngs));
+    assert.equal(fromPng.type, "image/png");
+    assert.ok(Buffer.from(await fromPng.arrayBuffer()).equals(pngs[1].data));
+    const fromBmp = await decodeImage(ico(bmps));
+    assert.equal(fromBmp.type, "image/x-icon");
+    assert.ok(Buffer.from(await fromBmp.arrayBuffer()).subarray(22).equals(bmps[0].data));
+    assert.equal((await decodeImage(ico(pngs, "FAVICON.ICO", ""))).type, "image/png");
+    assert.equal((await decodeImage(ico(pngs, "favicon.ico", "image/vnd.microsoft.icon"))).type, "image/png");
+    assert.equal((await decodeImage(ico(pngs, "favicon.ico", "image/png"))).type, "image/png");
+    const repositoryPng = new File([pngs[1].data], "favicon.ico", { type: "image/png" });
+    assert.equal(await decodeImage(repositoryPng), repositoryPng);
+    assert.equal(decoded.length, 6);
+    const before = decoded.length;
+    const good = buildIco([pngEntry(32)]);
+    const lying = pngEntry(32);
+    lying.data = Buffer.from(lying.data);
+    lying.data.writeUInt32BE(8192, 16);
+    for (const [name, file] of Object.entries({
+      "wrong extension": new File([good], "favicon.png", { type: "image/x-icon" }),
+      "icon content in a PNG": new File([good], "photo.png", { type: "image/png" }),
+      "PNG content in an ico": new File([transparentPng], "favicon.ico", { type: "image/x-icon" }),
+      "no extension or type": new File([good], "favicon"),
+      "svg in an ico": new File(["<svg/>"], "favicon.ico", { type: "image/svg+xml" }),
+      "truncated directory": new File([good.subarray(0, 20)], "favicon.ico", { type: "image/x-icon" }),
+      "hostile count": new File([Buffer.concat([Buffer.from([0, 0, 1, 0, 255, 255]), Buffer.alloc(64)])], "favicon.ico", { type: "image/x-icon" }),
+      "oversize entry dimensions": ico([lying]),
+      "oversize file": new File([Buffer.concat([good, Buffer.alloc(2_000_000)])], "favicon.ico", { type: "image/x-icon" }),
+    })) await assert.rejects(decodeImage(file), undefined, name);
+    assert.equal(decoded.length, before);
+  } finally { globalThis.createImageBitmap = previous; }
 });
