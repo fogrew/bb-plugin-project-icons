@@ -80,6 +80,7 @@ function ContextualEditor() {
   const origin = useRef<HTMLElement | null>(null);
   const contextOrigin = useRef<HTMLElement | null>(null);
   const opening = useRef(false);
+  const pressedOnDialog = useRef(false);
   const title = useId();
   const closeEditor = () => {
     opening.current = false;
@@ -140,8 +141,9 @@ function ContextualEditor() {
       if (event.target !== event.currentTarget) return;
       if (!opening.current && origin.current?.isConnected) origin.current.focus();
     }}
+    onPointerDown={event => { pressedOnDialog.current = event.target === event.currentTarget; }}
     onClick={event => {
-      if (event.target !== event.currentTarget) return;
+      if (event.target !== event.currentTarget || !pressedOnDialog.current) return;
       const box = event.currentTarget.getBoundingClientRect();
       if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) closeEditor();
     }}

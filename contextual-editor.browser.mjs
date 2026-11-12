@@ -128,7 +128,13 @@ try {
     assert.notEqual((await styled(outer)).background, "rgba(0, 0, 0, 0)");
     const closeBox = await close.boundingBox();
     assert.ok(closeBox.x >= box.left && closeBox.x + closeBox.width <= box.left + box.width);
-    await page.mouse.click(box.left + 4, box.top + 4);
+    await page.mouse.click(box.left + 12, box.top + 12);
+    assert.equal(await outer.evaluate(el=>el.open),true);
+    const field = await outer.getByRole("button",{name:"Find icons in repository"}).boundingBox();
+    await page.mouse.move(field.x + 4, field.y + 4);
+    await page.mouse.down();
+    await page.mouse.move(1, 1);
+    await page.mouse.up();
     assert.equal(await outer.evaluate(el=>el.open),true);
     await page.mouse.click(1, 1);
     await outer.waitFor({state:"hidden"});
@@ -146,7 +152,7 @@ try {
   await close.click();
   await page.setViewportSize({width:1280,height:720});
   checks.push("dialog is centered, inside the viewport at 320/768/1440 px and scrolls in a short one under a host CSS reset; close, tab and action buttons keep visible styling");
-  checks.push("editor closes by close button, Escape and backdrop click, and ignores clicks inside the dialog padding");
+  checks.push("editor closes by close button, Escape and backdrop click, and ignores clicks inside the dialog padding and drags that end on the backdrop");
 
   await open("Menu for B");
   await upload();
