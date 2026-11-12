@@ -1,5 +1,6 @@
 import { MAX_IMAGE_BYTES, sniffImage } from "./icon-discovery.ts";
 import { peerImagePath } from "./artwork-contract.ts";
+import { imageDimensions, withinPeerBounds } from "./image-bounds.ts";
 
 const EXTENSIONS = { png: "png", jpeg: "jpg", webp: "webp" } as const;
 
@@ -31,5 +32,6 @@ export async function fetchPeerImage(
   const bytes = await readBounded(response, MAX_IMAGE_BYTES);
   const format = sniffImage(bytes);
   if (!format) throw new Error("Homepage image is not a PNG, JPEG or WebP file");
+  if (!withinPeerBounds(imageDimensions(bytes, format))) throw new Error("Homepage image dimensions are not supported");
   return new File([bytes as BlobPart], `homepage-icon.${EXTENSIONS[format]}`, { type: `image/${format}` });
 }
