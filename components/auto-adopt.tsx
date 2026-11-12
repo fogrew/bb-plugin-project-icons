@@ -4,6 +4,7 @@ import type { rpcContract } from "../server";
 import { createAdopter } from "../lib/auto-adopt";
 import { fetchPeerImage } from "../lib/peer-image";
 import { decodeImage, defaultCrop, drawIcon, encodeIcon } from "../lib/image-processing";
+import { drawEmoji } from "../lib/emoji-rendering";
 
 export const SCAN_EVENT = "bb-project-icons-scan";
 const START_DELAY_MS = 3000;
@@ -18,13 +19,20 @@ async function normalise(file: File): Promise<string> {
   } finally { bitmap.close(); }
 }
 
+async function renderEmoji(emoji: string): Promise<string> {
+  const canvas = document.createElement("canvas");
+  drawEmoji(canvas, emoji);
+  return encodeIcon(canvas);
+}
+
 export function AutoAdopt() {
   const rpc = useRpc<typeof rpcContract>();
   const adopter = useMemo(() => createAdopter({
     scan: input => rpc.call("adoptionScan", input),
     adopt: input => rpc.call("adoptPeer", input),
-    fetchImage: fetchPeerImage,
+    fetchImage: (projectId, signal, source) => fetchPeerImage(projectId, signal, fetch, source),
     normalise,
+    renderEmoji,
   }), [rpc]);
   const trigger = useRef<(force: boolean) => void>(() => {});
   useEffect(() => {

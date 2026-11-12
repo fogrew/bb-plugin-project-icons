@@ -1,8 +1,10 @@
 import { MAX_IMAGE_BYTES, sniffImage } from "./icon-discovery.ts";
-import { peerImagePath } from "./artwork-contract.ts";
+import { peerImageRoute } from "./artwork-contract.ts";
 import { imageDimensions, withinPeerBounds } from "./image-bounds.ts";
+import { peerName, type PeerId } from "./peers.ts";
 
 const EXTENSIONS = { png: "png", jpeg: "jpg", webp: "webp" } as const;
+export type PeerImageSource = { peer?: PeerId; environmentId?: string };
 
 async function readBounded(response: Response, limit: number): Promise<Uint8Array> {
   const declared = Number(response.headers.get("content-length"));
@@ -25,13 +27,16 @@ async function readBounded(response: Response, limit: number): Promise<Uint8Arra
 }
 
 export async function fetchPeerImage(
-  projectId: string, signal: AbortSignal, fetcher: typeof fetch = fetch,
+  projectId: string, signal: AbortSignal, fetcher: typeof fetch = fetch, source: PeerImageSource = {},
 ): Promise<File> {
-  const response = await fetcher(peerImagePath(projectId), { signal, credentials: "same-origin", redirect: "error" });
-  if (!response.ok) throw new Error("Homepage has no image for this project");
+  const peer = source.peer ?? "homepage";
+  const route = peerImageRoute(peer, projectId, source.environmentId);
+  if (!route) throw new Error(`${peerName(peer)} serves no project images`);
+  const response = await fetcher(route, { signal, credentials: "same-origin", redirect: "error" });
+  if (!response.ok) throw new Error(`${peerName(peer)} has no image for this project`);
   const bytes = await readBounded(response, MAX_IMAGE_BYTES);
   const format = sniffImage(bytes);
-  if (!format) throw new Error("Homepage image is not a PNG, JPEG or WebP file");
-  if (!withinPeerBounds(imageDimensions(bytes, format))) throw new Error("Homepage image dimensions are not supported");
-  return new File([bytes as BlobPart], `homepage-icon.${EXTENSIONS[format]}`, { type: `image/${format}` });
+  if (!format) throw new Error(`${peerName(peer)} image is not a PNG, JPEG or WebP file`);
+  if (!withinPeerBounds(imageDimensions(bytes, format))) throw new Error(`${peerName(peer)} image dimensions are not supported`);
+  return new File([bytes as BlobPart], `${peer}-icon.${EXTENSIONS[format]}`, { type: `image/${format}` });
 }

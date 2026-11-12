@@ -12,6 +12,14 @@ export const iconHttpPath = (projectId: string, revision: number) =>
 export const peerImagePath = (projectId: string) =>
   `/api/v1/plugins/${PEER_PLUGIN_ID}/http/project-icon?projectId=${encodeURIComponent(projectId)}`;
 
+const ENVIRONMENT_PARAM = /^[A-Za-z0-9_-]{1,64}$/;
+export function peerImageRoute(peer: string, projectId: string, environmentId?: string): string | null {
+  if (peer === PEER_PLUGIN_ID) return peerImagePath(projectId);
+  if (peer !== "bb-sidebar") return null;
+  const environment = environmentId && ENVIRONMENT_PARAM.test(environmentId) ? `&environmentId=${environmentId}` : "";
+  return `/api/v1/plugins/bb-sidebar/http/project-icon?projectId=${encodeURIComponent(projectId)}${environment}`;
+}
+
 const version = z.literal(ICON_CONTRACT_VERSION);
 const projectId = z.string().min(1).max(64);
 

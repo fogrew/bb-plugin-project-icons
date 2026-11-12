@@ -76,7 +76,12 @@ await build({
   } }],
 });
 const homepageRequests = [];
+const sidebarRequests = [];
 const server = createServer(async (req, res) => {
+  if (req.url.startsWith("/api/v1/plugins/bb-sidebar/http/project-icon")) {
+    sidebarRequests.push(req.url);
+    return res.writeHead(200, { "Content-Type": "image/png" }).end(image);
+  }
   if (req.url.startsWith("/api/v1/plugins/homepage/http/project-icon")) {
     homepageRequests.push(req.url);
     return res.writeHead(200, { "Content-Type": "image/png" }).end(image);
@@ -183,6 +188,38 @@ try {
   assert.equal(letterboxed.data[3], 0, "wide JPEG is fitted onto a transparent 64 x 64 canvas");
   assert.equal(letterboxed.data[(32 * 64 + 32) * 4 + 3], 255);
   checks.push("PNG, JPEG, WebP and Homepage-route artwork are normalised to 64 x 64 PNGs; a corrupt image is skipped without blocking the rest");
+
+  const more = {
+    status: "ok",
+    candidates: [
+      { projectId: "proj_aaaaaaaaaa", peer: "threadspace", revision: null, transport: "emoji", hash: "e".repeat(64), knownHash: null, emoji: "😀" },
+      { projectId: "proj_bbbbbbbbbb", peer: "bb-sidebar", revision: null, transport: "http", hash: null, knownHash: null, environmentId: "env_main" },
+      { projectId: "proj_cccccccccc", peer: "bb-sidebar", revision: null, transport: "http", hash: null, knownHash: null },
+    ],
+  };
+  await page.evaluate(next => { window.scans = [next]; }, more);
+  await page.evaluate(() => window.dispatchEvent(new Event("bb-project-icons-scan")));
+  await page.waitForFunction(() => window.calls.filter(c => c.method === "adoptPeer").length === 7);
+  const extra = (await calls("adoptPeer")).slice(4);
+  assert.deepEqual(extra.map(c => [c.input.projectId, c.input.peer, c.input.ifRevision]),
+    [["proj_aaaaaaaaaa", "threadspace", null], ["proj_bbbbbbbbbb", "bb-sidebar", null], ["proj_cccccccccc", "bb-sidebar", null]]);
+  assert.equal(extra[0].input.hash, "e".repeat(64), "the emoji hash comes from the server");
+  assert.deepEqual(sidebarRequests, [
+    "/api/v1/plugins/bb-sidebar/http/project-icon?projectId=proj_bbbbbbbbbb&environmentId=env_main",
+    "/api/v1/plugins/bb-sidebar/http/project-icon?projectId=proj_cccccccccc",
+  ]);
+  assert.equal(extra[1].input.hash, createHash("sha256").update(image).digest("hex"));
+  for (const { input } of extra) {
+    const bytes = Buffer.from(input.base64, "base64");
+    const decoded = PNG.sync.read(bytes);
+    assert.deepEqual([decoded.width, decoded.height], [64, 64]);
+    assert.ok(bytes.length <= 65536);
+  }
+  const glyph = PNG.sync.read(Buffer.from(extra[0].input.base64, "base64"));
+  let inked = 0;
+  for (let offset = 3; offset < glyph.data.length; offset += 4) if (glyph.data[offset] > 0) inked += 1;
+  assert.ok(inked > 200 && glyph.data[3] === 0, "the emoji is drawn on a transparent 64 x 64 canvas");
+  checks.push("Threadspace emoji are rendered to a transparent 64 x 64 PNG and BB Sidebar images are fetched from its fixed route with the resolved environment");
   assert.deepEqual(errors, []);
 
   await writeFile(resolve(output, "results.json"), JSON.stringify({ checks, boundaries: "Real Chrome/React/canvas. SDK, RPC, peer scan results and Homepage route are fixtures; not live BB or any live peer plugin." }, null, 2));

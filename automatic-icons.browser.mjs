@@ -11,7 +11,8 @@ const bundle = await build({ stdin: { contents: `
 import { mountIcons } from "./lib/sidebar-icons";
 import { automaticIcon, automaticColor } from "./lib/automatic-icon";
 import { projectInitials } from "./lib/icon-presets";
-window.fixture = { mountIcons, automaticIcon, automaticColor, projectInitials };
+import { hints } from "./lib/hints-store";
+window.fixture = { mountIcons, automaticIcon, automaticColor, projectInitials, hints };
 `, resolveDir: process.cwd() }, bundle: true, write: false, format: "iife" });
 const server = createServer((req, res) => {
   res.setHeader("Content-Type", req.url === "/fixture.js" ? "text/javascript" : "text/html");
@@ -28,8 +29,15 @@ try {
   await page.goto("http://127.0.0.1:" + server.address().port);
   const result = await page.evaluate(async () => {
     const f = window.fixture;
-    let icons = {}, fetches = 0, release;
-    window.fetch = async () => { fetches++; return { ok: true, json: async () => icons }; };
+    let icons = {}, fetches = 0, release, hintsReply = {};
+    window.fetch = async target => { fetches++; return { ok: true, json: async () => String(target).includes("/hints") ? hintsReply : icons }; };
+    const pixel = async (src, x, y) => {
+      const img = new Image(); img.src = src; await img.decode();
+      const canvas = document.createElement("canvas"); canvas.width = canvas.height = 64;
+      const ctx = canvas.getContext("2d"); ctx.drawImage(img, 0, 0);
+      return [...ctx.getImageData(x, y, 1, 1).data];
+    };
+    const same = (actual, expected) => actual.every((value, index) => value === expected[index]);
     const tick = () => new Promise(done => setTimeout(done, 30));
     const check = (value, label) => { if (!value) throw Error(label); };
     const row = (id, name) => {
@@ -65,11 +73,40 @@ try {
     window.dispatchEvent(new Event("bb-project-icons-changed")); await tick();
     check(image.src.endsWith("&v=8"), "Undo/realtime saved revision");
     check(a.el.querySelectorAll("img").length === 1, "no duplicates");
+    icons = {}; window.dispatchEvent(new Event("bb-project-icons-changed")); await tick();
+    const palette = f.automaticIcon("proj_aaaaaaaaaa", "東京");
+    check(image.src === palette, "palette colour without a hint");
+    hintsReply = { colors: { proj_aaaaaaaaaa: "#112233" } };
+    await f.hints.refresh({ force: true }); await tick();
+    check(image.src === f.automaticIcon("proj_aaaaaaaaaa", "東京", "#112233") && image.src !== palette, "hint recolours automatic initials");
+    check(same(await pixel(image.src, 8, 32), [0x11, 0x22, 0x33, 255]), "hint is the background pixel");
+    check(b.el.querySelector("img").src === f.automaticIcon("proj_bbbbbbbbbb", ""), "other projects keep their palette colour");
+    icons = { proj_aaaaaaaaaa: 9 };
+    window.dispatchEvent(new Event("bb-project-icons-changed")); await tick();
+    check(image.src.endsWith("&v=9"), "a saved icon always beats a hint");
+    icons = {}; window.dispatchEvent(new Event("bb-project-icons-changed")); await tick();
+    check(image.src === f.automaticIcon("proj_aaaaaaaaaa", "東京", "#112233"), "removal reveals the hinted initials");
+    hintsReply = { colors: { proj_aaaaaaaaaa: "#ffee00" } };
+    await f.hints.refresh({ force: true }); await tick();
+    check(same(await pixel(image.src, 8, 32), [0xff, 0xee, 0x00, 255]), "a changed hint re-renders the cached fallback");
+    hintsReply = { colors: { proj_aaaaaaaaaa: "red" } };
+    await f.hints.refresh({ force: true }); await tick();
+    check(image.src === palette, "a malformed colour falls back to the palette");
+    hintsReply = { colors: { proj_aaaaaaaaaa: "#112233" } };
+    await f.hints.refresh({ force: true }); await tick();
+    hintsReply = { unexpected: true };
+    await f.hints.refresh({ force: true }); await tick();
+    check(image.src === f.automaticIcon("proj_aaaaaaaaaa", "東京", "#112233"), "a malformed response keeps the last good hint");
+    hintsReply = { colors: {} };
+    await f.hints.refresh({ force: true }); await tick();
+    check(image.src === palette, "an empty hint set restores the palette colour");
+    icons = { proj_aaaaaaaaaa: 8 };
+    window.dispatchEvent(new Event("bb-project-icons-changed")); await tick();
     dispose(); await tick();
     check(!document.querySelector(".bb-project-icons-image"), "cleanup");
     const before = fetches; window.dispatchEvent(new Event("bb-project-icons-changed")); await tick();
     check(fetches === before, "listeners disposed");
-    window.fetch = () => new Promise(done => release = done);
+    window.fetch = target => String(target).includes("/hints") ? Promise.resolve({ ok: true, json: async () => hintsReply }) : new Promise(done => release = done);
     dispose = f.mountIcons(controller.signal);
     dispose();
     release({ ok: true, json: async () => ({ proj_aaaaaaaaaa: 99 }) }); await tick();
@@ -77,7 +114,7 @@ try {
     window.fetch = async () => ({ ok: true, json: async () => ({}) });
     dispose = f.mountIcons(controller.signal); await tick();
     window.dispose = dispose;
-    return { fetches, scenarios: ["Unicode PNG equivalence", "empty/duplicate names", "text-node and replacement rename", "new rows", "saved precedence", "remove and realtime", "no duplicate images", "cleanup/listener removal", "late fetch and queued decoration"], mutations: "Only DOM; mock fetch accepts no writes", liveBB: false };
+    return { fetches, scenarios: ["hint colour, precedence and invalidation", "Unicode PNG equivalence", "empty/duplicate names", "text-node and replacement rename", "new rows", "saved precedence", "remove and realtime", "no duplicate images", "cleanup/listener removal", "late fetch and queued decoration"], mutations: "Only DOM; mock fetch accepts no writes", liveBB: false };
   });
   await page.screenshot({ path: resolve(output, "sidebar-fallback.png") });
   await page.evaluate(() => window.dispose());

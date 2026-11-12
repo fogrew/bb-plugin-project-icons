@@ -12,8 +12,9 @@ export type AdoptClient = {
   scan(input: { skip: string[] }): Promise<{ status: "ok" | "disabled"; candidates: Candidate[] }>;
   adopt(input: { projectId: string; peer: Candidate["peer"]; hash: string; base64: string; ifRevision: number | null }):
     Promise<{ status: "adopted" | "skipped" }>;
-  fetchImage(projectId: string, signal: AbortSignal): Promise<File>;
+  fetchImage(projectId: string, signal: AbortSignal, source?: { peer: Candidate["peer"]; environmentId?: string }): Promise<File>;
   normalise(file: File): Promise<string>;
+  renderEmoji(emoji: string): Promise<string>;
 };
 export type RunSummary = { adopted: number; skipped: number; failed: number };
 type RunOptions = { force?: boolean; signal: AbortSignal };
@@ -38,10 +39,23 @@ export function createAdopter(client: AdoptClient, options: { minIntervalMs?: nu
   const failures = new Map<string, number>();
   const unchanged = new Map<string, { hash: string; until: number }>();
 
+  async function adoptEmoji(candidate: Candidate): Promise<"adopted" | "skipped"> {
+    if (!candidate.emoji || !candidate.hash) throw new Error("Emoji candidate has no emoji");
+    if (candidate.knownHash === candidate.hash) return "skipped";
+    const base64 = await client.renderEmoji(candidate.emoji);
+    const result = await client.adopt({
+      projectId: candidate.projectId, peer: candidate.peer, hash: candidate.hash, base64, ifRevision: candidate.revision,
+    });
+    return result.status === "adopted" ? "adopted" : "skipped";
+  }
+
   async function adoptOne(candidate: Candidate, signal: AbortSignal): Promise<"adopted" | "skipped"> {
+    if (candidate.transport === "emoji") return adoptEmoji(candidate);
     const file = candidate.transport === "inline"
       ? inlineFile(candidate)
-      : await client.fetchImage(candidate.projectId, AbortSignal.any([signal, AbortSignal.timeout(ITEM_TIMEOUT_MS)]));
+      : await client.fetchImage(candidate.projectId, AbortSignal.any([signal, AbortSignal.timeout(ITEM_TIMEOUT_MS)]), {
+        peer: candidate.peer, ...(candidate.environmentId ? { environmentId: candidate.environmentId } : {}),
+      });
     const hash = candidate.hash ?? await contentHash(new Uint8Array(await file.arrayBuffer()));
     if (candidate.knownHash === hash) {
       if (candidate.transport === "http") remember(unchanged, candidate.projectId, { hash, until: now() + RECHECK_MS });
