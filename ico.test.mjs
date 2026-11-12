@@ -48,11 +48,27 @@ test("a 256 pixel BMP entry uses the zero dimension byte in the standalone ICO",
   assert.deepEqual([out[6], out[7]], [0, 0]);
 });
 
-test("palette, 24-bit and 32-bit BMP entries are accepted", () => {
-  for (const depth of [8, 24, 32]) {
-    const image = extractIconImage(buildIco([bmpEntry(32, { depth })]));
-    assert.equal(image.mimeType, "image/x-icon", String(depth));
+test("1, 4, 8, 24 and 32-bit BMP entries are accepted, including padded row widths", () => {
+  for (const size of [16, 20, 32]) {
+    for (const depth of [1, 4, 8, 24, 32]) {
+      const entry = bmpEntry(size, { depth });
+      const image = extractIconImage(buildIco([entry]));
+      assert.equal(image.mimeType, "image/x-icon", `${size}px ${depth}-bit`);
+      assert.equal(Buffer.from(image.bytes).readUInt16LE(12), depth);
+      assert.ok(Buffer.from(image.bytes).subarray(22).equals(entry.data));
+    }
   }
+});
+
+test("the directory bit count is not trusted", () => {
+  const lyingHigh = { ...bmpEntry(32, { depth: 24 }), bitCount: 65535 };
+  const png = pngEntry(32);
+  assert.equal(extractIconImage(buildIco([lyingHigh, png])).mimeType, "image/png");
+  const lyingLow = { ...bmpEntry(32), bitCount: 1 };
+  const image = extractIconImage(buildIco([lyingLow]));
+  assert.equal(Buffer.from(image.bytes).readUInt16LE(12), 32);
+  const gray = { ...pngEntry(32), data: patched(pngEntry(32).data, copy => { copy[24] = 8; copy[25] = 0; }) };
+  assert.equal(extractIconImage(buildIco([gray, bmpEntry(32, { depth: 24 })])).mimeType, "image/x-icon");
 });
 
 test("ties break by bit depth, then directory order", () => {
@@ -109,9 +125,17 @@ test("hostile or truncated directories are rejected", () => {
   for (const [name, bytes] of Object.entries(cases)) assert.throws(() => extractIconImage(bytes), MALFORMED, name);
 });
 
-test("entries over the byte cap are rejected", () => {
+test("files over the byte cap are rejected", () => {
   const huge = Buffer.concat([buildIco([pngEntry(16)]), Buffer.alloc(MAX_ICO_BYTES)]);
-  assert.throws(() => extractIconImage(huge), /larger than 2 MB/);
+  assert.throws(() => extractIconImage(huge), MALFORMED);
+});
+
+test("PNG entries with impossible color type or bit depth are skipped", () => {
+  const base = pngEntry(32);
+  for (const [depth, colorType] of [[8, 1], [4, 2], [16, 3], [3, 0], [0, 6], [8, 5]]) {
+    const entry = { ...base, data: patched(base.data, copy => { copy[24] = depth; copy[25] = colorType; }) };
+    assert.throws(() => extractIconImage(buildIco([entry])), NO_IMAGE, `${depth}/${colorType}`);
+  }
 });
 
 test("PNG entries with oversize or mismatched dimensions are skipped", () => {

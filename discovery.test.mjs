@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { createFakePluginHost } from "@get-bb/plugin-sdk/testing";
 import plugin from "./dist/server.js";
 import { transparentPng as png } from "./test-fixtures/png.mjs";
-import { bmpEntry, buildIco, pngEntry } from "./test-fixtures/ico.mjs";
+import { bmpEntry, buildIco, jpegBytes, pngEntry, pngWithSize, webpBytes } from "./test-fixtures/ico.mjs";
 import { MAX_CANDIDATES, isDiscoverablePath, isSafeRelativePath, selectCandidates, sniffImage, sniffRepositoryImage } from "./lib/icon-discovery.ts";
 
 const projectId = "proj_aaaaaaaaaa";
@@ -193,8 +193,6 @@ test("readCandidate rejects ICO extension mismatches, hostile directories and ov
   for (const path of ["public/logo.png", "public/logo.jpg", "public/logo.webp"]) {
     await assert.rejects(h.call("readCandidate", { projectId, path }), /not a supported image/, path);
   }
-  content.value = png;
-  await assert.rejects(h.call("readCandidate", { projectId, path: "public/favicon.ico" }), /not a supported image/);
   content.value = Buffer.from("<svg xmlns='http://www.w3.org/2000/svg'/>");
   await assert.rejects(h.call("readCandidate", { projectId, path: "public/favicon.ico" }), /not a supported image/);
   content.value = patchedCopy(good, copy => copy.writeUInt16LE(2, 2));
@@ -222,5 +220,34 @@ test("readCandidate still returns PNG candidates unchanged", async () => {
   const h = host({ fileContent: async () => ({ content: png.toString("base64"), contentEncoding: "base64", mimeType: "image/png", sizeBytes: png.length }) });
   assert.deepEqual(await h.call("readCandidate", { projectId, path: "public/favicon.png" }), { base64: png.toString("base64"), mimeType: "image/png", sizeBytes: png.length });
   await assert.rejects(h.call("readCandidate", { projectId, path: "public/favicon.bmp" }), /Unsupported image path/);
+  await h.dispose();
+});
+
+test("readCandidate treats raster content under an .ico name as that format and keeps the reverse rejected", async () => {
+  const jpeg = jpegBytes(64, 64);
+  const webp = webpBytes(64, 64);
+  const ico = buildIco([pngEntry(32)]);
+  const content = { value: png };
+  const h = host({ fileContent: async () => ({ content: content.value.toString("base64"), contentEncoding: "base64", mimeType: "image/x-icon", sizeBytes: content.value.length }) });
+  for (const [bytes, mimeType, extension] of [[png, "image/png", "png"], [jpeg, "image/jpeg", "jpg"], [webp, "image/webp", "webp"]]) {
+    content.value = bytes;
+    const result = await h.call("readCandidate", { projectId, path: "public/favicon.ico" });
+    assert.deepEqual([result.mimeType, result.sizeBytes], [mimeType, bytes.length], mimeType);
+    assert.ok(Buffer.from(result.base64, "base64").equals(bytes), mimeType);
+    for (const path of ["public/logo.png", "public/logo.jpg", "public/logo.webp"]) {
+      if (!path.endsWith(extension)) await assert.rejects(h.call("readCandidate", { projectId, path }), /not a supported image/, `${mimeType} as ${path}`);
+    }
+  }
+  for (const bytes of [pngWithSize(png, 9000, 64), pngWithSize(png, 4096, 4097), jpegBytes(5000, 64), webpBytes(64, 9000)]) {
+    content.value = bytes;
+    await assert.rejects(h.call("readCandidate", { projectId, path: "public/favicon.ico" }), /dimensions are not supported/);
+  }
+  content.value = Buffer.from("GIF89a-not-an-image");
+  await assert.rejects(h.call("readCandidate", { projectId, path: "public/favicon.ico" }), /not a supported image/);
+  content.value = ico;
+  for (const path of ["public/logo.png", "public/logo.jpg", "public/logo.jpeg", "public/logo.webp"]) {
+    await assert.rejects(h.call("readCandidate", { projectId, path }), /not a supported image/, path);
+  }
+  assert.equal((await h.call("readCandidate", { projectId, path: "public/favicon.ico" })).mimeType, "image/png");
   await h.dispose();
 });

@@ -3,9 +3,9 @@ import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import { decodePng } from "./lib/png-validation";
 import {
-  MAX_IMAGE_BYTES, SEARCH_QUERIES, extensionMatchesFormat, isAcceptedExtension, isDiscoverablePath, selectCandidates, sniffRepositoryImage,
+  MAX_IMAGE_BYTES, SEARCH_QUERIES, extensionMatchesFormat, extensionOf, isAcceptedExtension, isDiscoverablePath, resolveIcoFile,
+  selectCandidates, sniffRepositoryImage,
 } from "./lib/icon-discovery";
-import { extractIconImage } from "./lib/ico";
 import {
   ICON_CONTRACT_VERSION, PEER_PLUGIN_ID, PEER_TIMEOUT_MS, PLUGIN_ID, iconHttpPath, peerArtworkInput, peerArtworkOutput,
   peerAvailability, peerReply, resolveIconInput, resolveIconOutput,
@@ -239,8 +239,8 @@ export default function plugin(bb: BbPluginApi) {
       if (bytes.length > MAX_IMAGE_BYTES) throw new Error("Image is larger than 2 MB");
       const format = sniffRepositoryImage(bytes);
       if (!format || !extensionMatchesFormat(path, format)) throw new Error("File content is not a supported image");
-      if (format === "ico") {
-        const image = extractIconImage(bytes);
+      if (format === "ico" || extensionOf(path) === "ico") {
+        const image = resolveIcoFile(bytes);
         return { base64: Buffer.from(image.bytes).toString("base64"), mimeType: image.mimeType, sizeBytes: image.bytes.length };
       }
       return { base64: bytes.toString("base64"), mimeType: `image/${format}` as const, sizeBytes: bytes.length };

@@ -13,10 +13,10 @@ export function pngEntry(size, pixel = halves(size)) {
 }
 
 export function bmpEntry(size, { depth = 32, pixel = halves(size) } = {}) {
-  const palette = depth === 8 ? [TOP, BOTTOM] : [];
+  const palette = depth <= 8 ? [TOP, BOTTOM] : [];
   const stride = ((size * depth + 31) >> 5) * 4;
   const maskStride = ((size + 31) >> 5) * 4;
-  const colors = depth === 8 ? 256 : 0;
+  const colors = depth <= 8 ? 2 ** depth : 0;
   const header = Buffer.alloc(40);
   header.writeUInt32LE(40, 0);
   header.writeInt32LE(size, 4);
@@ -34,7 +34,7 @@ export function bmpEntry(size, { depth = 32, pixel = halves(size) } = {}) {
       const [r, g, b, a] = pixel(x, y);
       if (depth === 32) pixels.set([b, g, r, a], row + x * 4);
       else if (depth === 24) pixels.set([b, g, r], row + x * 3);
-      else pixels[row + x] = y >= size / 2 ? 1 : 0;
+      else if (y >= size / 2) pixels[row + Math.floor((x * depth) / 8)] |= 1 << (8 - depth - ((x * depth) % 8));
     }
   }
   return { width: size, height: size, bitCount: depth, data: Buffer.concat([header, table, pixels, mask]) };
@@ -57,4 +57,27 @@ export function buildIco(entries, { count = entries.length } = {}) {
     offset += entry.data.length;
   });
   return Buffer.concat([head, ...entries.map((entry) => entry.data)]);
+}
+
+export function jpegBytes(width, height) {
+  return Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, ...Array(14).fill(0), 0xff, 0xc0, 0x00, 0x11, 0x08,
+    height >> 8, height & 255, width >> 8, width & 255, 3, 1, 0x22, 0, 2, 0x11, 1, 3, 0x11, 1, 0xff, 0xd9]);
+}
+
+export function webpBytes(width, height) {
+  const bytes = Buffer.alloc(30);
+  bytes.write("RIFF", 0);
+  bytes.write("WEBP", 8);
+  bytes.write("VP8X", 12);
+  bytes.writeUInt32LE(10, 16);
+  bytes.writeUIntLE(width - 1, 24, 3);
+  bytes.writeUIntLE(height - 1, 27, 3);
+  return bytes;
+}
+
+export function pngWithSize(png, width, height) {
+  const bytes = Buffer.from(png);
+  bytes.writeUInt32BE(width, 16);
+  bytes.writeUInt32BE(height, 20);
+  return bytes;
 }

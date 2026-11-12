@@ -1,4 +1,5 @@
-import { looksLikeIco } from "./ico.ts";
+import { IcoError, extractIconImage, looksLikeIco, type IconImage } from "./ico.ts";
+import { imageDimensions, withinPeerBounds } from "./image-bounds.ts";
 
 export const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
 export const MAX_CANDIDATES = 12;
@@ -121,5 +122,15 @@ export function sniffRepositoryImage(bytes: Uint8Array): "png" | "jpeg" | "webp"
 
 export function extensionMatchesFormat(path: string, format: "png" | "jpeg" | "webp" | "ico"): boolean {
   const extension = extensionOf(path);
+  if (format === "ico") return extension === "ico";
+  if (extension === "ico") return true;
   return format === "jpeg" ? extension === "jpg" || extension === "jpeg" : extension === format;
+}
+
+export function resolveIcoFile(bytes: Uint8Array): IconImage {
+  if (looksLikeIco(bytes)) return extractIconImage(bytes);
+  const format = sniffImage(bytes);
+  if (!format) throw new IcoError("File content is not a supported image");
+  if (!withinPeerBounds(imageDimensions(bytes, format))) throw new IcoError("Image dimensions are not supported");
+  return { mimeType: `image/${format}`, bytes };
 }

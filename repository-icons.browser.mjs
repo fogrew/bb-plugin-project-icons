@@ -7,7 +7,7 @@ import { createServer } from "node:http";
 import { resolve } from "node:path";
 import { PNG } from "pngjs";
 import { extractIconImage } from "./lib/ico.ts";
-import { BOTTOM, TOP, bmpEntry, buildIco, pngEntry } from "./test-fixtures/ico.mjs";
+import { BOTTOM, TOP, bmpEntry, buildIco, pngEntry, pngWithSize } from "./test-fixtures/ico.mjs";
 
 const output = resolve("dist/repository-browser");
 await mkdir(output, { recursive: true });
@@ -144,12 +144,26 @@ try {
   await saveButton.waitFor();
   await saveButton.click();
   assertHalves(await savedPng(5), "manual multi-size ICO (BMP entry)");
-  checks.push("manual ICO import picks the largest entry (PNG or BMP) and saves a 64 x 64 PNG");
+  let saves = 5;
+  for (const [label, buffer] of [
+    ["PNG content under an .ico name", pngEntry(64).data],
+    ["1-bit BMP entry", buildIco([bmpEntry(32, { depth: 1 })])],
+    ["4-bit BMP entry", buildIco([bmpEntry(32, { depth: 4 })])],
+    ["8-bit BMP entry", buildIco([bmpEntry(32, { depth: 8 })])],
+  ]) {
+    await saveButton.waitFor({ state: "detached" });
+    await picker.setInputFiles({ name: "favicon.ico", mimeType: "image/x-icon", buffer });
+    await saveButton.waitFor();
+    await saveButton.click();
+    assertHalves(await savedPng(++saves), label);
+  }
+  checks.push("manual ICO import picks the largest entry (PNG or BMP), also 1/4/8-bit palettes and PNG data under an .ico name, and saves a 64 x 64 PNG");
 
   for (const [name, file] of Object.entries({
     "truncated directory": { name: "bad.ico", mimeType: "image/x-icon", buffer: bmpIco.subarray(0, 20) },
     "extension mismatch": { name: "photo.png", mimeType: "image/png", buffer: pngIco },
-    "PNG renamed to ico": { name: "photo.ico", mimeType: "image/x-icon", buffer: image },
+    "ICO typed content without an .ico name": { name: "image.png", mimeType: "image/x-icon", buffer: pngIco },
+    "oversize PNG under an .ico name": { name: "photo.ico", mimeType: "image/x-icon", buffer: pngWithSize(image, 9000, 64) },
   })) {
     const rejection = page.getByRole("alert").filter({ hasText: "Could not read image" });
     await picker.setInputFiles({ name: "favicon.ico", mimeType: "image/x-icon", buffer: pngIco });
@@ -157,9 +171,9 @@ try {
     await rejection.waitFor({ state: "detached" });
     await picker.setInputFiles(file);
     await rejection.waitFor();
-    assert.equal(await page.evaluate(() => window.calls.filter(c => c.method === "save").length), 5, name);
+    assert.equal(await page.evaluate(() => window.calls.filter(c => c.method === "save").length), 9, name);
   }
-  checks.push("hostile, mislabeled and renamed ICO files are rejected without saving");
+  checks.push("hostile, mislabeled, nameless and oversize ICO-named files are rejected without saving");
 
   await page.evaluate(() => { window.mode = "empty"; });
   await find.click();
