@@ -60,7 +60,8 @@ const server = createServer(async (req, res) => {
     peerRequests.push(req.url);
     if (peerRoute === "png") return res.writeHead(200, { "Content-Type": "image/png" }).end(image);
     if (peerRoute === "svg") return res.writeHead(200, { "Content-Type": "image/svg+xml" }).end("<svg xmlns='http://www.w3.org/2000/svg'/>");
-    if (peerRoute === "corrupt") return res.writeHead(200, { "Content-Type": "image/png" }).end(Buffer.concat([image.subarray(0, 8), Buffer.alloc(64, 7)]));
+    if (peerRoute === "corrupt") return res.writeHead(200, { "Content-Type": "image/png" }).end(Buffer.concat([image.subarray(0, 33), Buffer.alloc(64, 7)]));
+    if (peerRoute === "huge") { const wide = Buffer.from(image); wide.writeUInt32BE(5000, 16); wide.writeUInt32BE(5000, 20); return res.writeHead(200, { "Content-Type": "image/png" }).end(wide); }
     if (peerRoute === "big") return res.writeHead(200, { "Content-Type": "image/png" }).end(Buffer.alloc(3 * 1024 * 1024, 1));
     return res.writeHead(404).end();
   }
@@ -129,13 +130,13 @@ try {
   checks.push("missing, disabled, incompatible, timed-out, glyph-only and failing peers give explicit states without a draft");
 
   await page.evaluate(() => { window.probe = { status: "image", pluginVersion: "0.2.7" }; });
-  for (const [route, text] of [["svg", "not a PNG, JPEG or WebP"], ["big", "larger than 2 MB"], ["missing", "no image for this project"]]) {
+  for (const [route, text] of [["svg", "not a PNG, JPEG or WebP"], ["big", "larger than 2 MB"], ["huge", "dimensions are not supported"], ["missing", "no image for this project"]]) {
     await page.request.get(`${origin}/__route/${route}`);
     await use.click();
     await page.getByText(text).waitFor();
     assert.equal(await page.getByRole("button", { name: "Save", exact: true }).count(), 0);
   }
-  checks.push("SVG, oversized and absent images are rejected before the editor");
+  checks.push("SVG, oversized, oversize-pixel and absent images are rejected before the editor");
 
   await page.request.get(`${origin}/__route/corrupt`);
   await use.click();

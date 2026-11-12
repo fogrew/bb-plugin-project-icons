@@ -10,6 +10,8 @@ with the explicit pre-1.0 policy in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ### Changed
 
+- `resolveIcon` results for an auto-adopted icon carry an optional `adoptedFrom` plugin id (contract version 1 is otherwise unchanged), and images imported from Homepage are bounded by decoded dimensions (4096 px per side).
+- Projects whose icon was removed before this version have no provenance record and become eligible for automatic adoption; turn off **Use artwork from installed plugins automatically** in Settings to keep them without an icon.
 - Repository icon discovery recognizes `app-icon`, `apple-touch-icon`, `android-chrome-*`, `ic_launcher`, size-only names in icon directories (`src-tauri/icons`, `mipmap-*`, `*.appiconset`) and `build/icon.png`, ranks larger square sizes and higher Android densities first, and runs three more host queries (`apple-touch`, `android-chrome`, `ic_launcher`). Safety limits are unchanged; `.claude`, `bin` and `obj` are now skipped.
 
 ### Fixed
@@ -18,6 +20,8 @@ with the explicit pre-1.0 policy in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ### Added
 
+- Automatic adoption of artwork from installed Homepage, Cursor Sidebar, Nest and Chat Sidebar plugins for projects without an icon, refreshed while the icon is still auto-imported and the same plugin's artwork changes. Saving or removing an icon marks the project manual for good; Settings shows each project's source, a global on/off toggle, and **Re-enable automatic icons** in the editor. Peer replies are version-checked, bounded and re-rendered to 64 x 64 PNGs; the peer RPCs are undocumented and found in source ([docs](docs/artwork-interoperability.md)).
+- README Compatibility section covering coexisting plugins, the Project Colors dot interaction, plugins that replace the thread list, and where the editor is reachable.
 - Edit project icons from the homepage, thread actions menu and open thread header in a shared contextual editor.
 - Suggest favicon, icon and logo images from the project repository on an explicit action; preview and Save remain manual. SVG is rejected.
 - Versioned, bounded read-only `resolveIcon` RPC so other plugins can read a project's manual icon, with an executable consumer example, revision revalidation and a capability matrix ([docs](docs/artwork-interoperability.md)). No peer plugin consumes it yet.

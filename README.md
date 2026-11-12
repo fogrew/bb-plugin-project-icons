@@ -46,9 +46,49 @@ All sources retain normalized PNG storage. The accepted server validates PNG str
 
 ## Plugin interoperability
 
-Other plugins can read a project's manually assigned icon through the versioned read-only `resolveIcon` RPC, and the image editor can import Homepage artwork as a previewed snapshot with **Use Homepage artwork**. See [Plugin artwork interoperability](docs/artwork-interoperability.md) for the capability matrix, contract, precedence and evidence boundaries. No peer plugin consumes Project Icons today.
+Other plugins can read a project's stored icon through the versioned read-only `resolveIcon` RPC. In the other direction, Project Icons can use artwork that other installed plugins already have for a project:
+
+- **Automatic adoption.** A project that has no icon takes artwork from the first installed supported plugin (Homepage, Cursor Sidebar, Nest, Chat Sidebar, in that order). While an icon is still auto-imported, it is replaced when that same plugin's artwork changes. The editor and Settings show the source ("From Cursor Sidebar, imported ..."). Turn it off for every project with **Use artwork from installed plugins automatically** in Settings.
+- **Manual choices win.** Saving or removing an icon marks that project manual for good; automatic adoption never touches it again. Icons that existed before this feature count as manual. Undoing a removal leaves the project manual too. A project whose icon was removed before this version was installed has no record, so it is treated as new and can receive peer artwork; turn the toggle off first if you do not want that. To opt a project back in, remove its icon and choose **Re-enable automatic icons** in the editor.
+- **Needs an open BB window.** Images are decoded in the browser with the same 64 x 64 PNG pipeline as manual imports, and Homepage images need the browser session. A scan runs shortly after BB loads, every 10 minutes while the tab is visible, and when you change these settings; it is rate limited and never blocks the UI.
+- **Explicit snapshot.** **Use Homepage artwork** in the image editor still previews Homepage artwork and saves it only on Save.
+
+See [Plugin artwork interoperability](docs/artwork-interoperability.md) for the contract, precedence, limits and evidence boundaries, and [Compatibility](#compatibility) for the plugins involved. No peer plugin consumes Project Icons today.
 
 ## Compatibility
+
+This section comes from reading each plugin's source at the versions named below and from read-only RPC calls on one machine. It was not verified with those plugins running next to Project Icons in a live BB, except where stated.
+
+### Peer RPCs are undocumented
+
+BB publishes no project-icon interface. The method names and reply shapes Project Icons reads from other plugins were found in their source code; they are not published contracts, and a new release of any of those plugins (or of BB's experimental plugin SDK) can change them. Project Icons checks the peer's installed version, validates every reply, bounds and sniffs every image (PNG, JPEG or WebP only, at most 256 KiB inline or 2 MB over HTTP, at most 4096 px per side), ignores a reply larger than 12 MB, and ignores a peer that does not match. A change therefore stops adoption from that plugin without affecting the sidebar. If a higher-priority plugin is installed but fails, times out or is not running, the projects it would serve wait for the next scan instead of taking artwork from a lower-priority plugin; a disabled or too-old plugin is simply skipped. A failing image is not retried for 30 minutes unless the peer's value changes.
+
+### Artwork Project Icons consumes
+
+| Plugin (id) | Version checked | What is read |
+| --- | --- | --- |
+| Homepage (`homepage`) | 0.2.7+ | `getProjectArtwork` says an image exists; the browser fetches `/project-icon` with its own session (at most 2 MB) |
+| Cursor Sidebar (`cursor-sidebar`) | 0.3.5+ | `listProjectIcons`: PNG, JPEG or WebP data URLs of at most 256 KiB; glyph, emoji and monogram values are ignored |
+| Nest (`nested-sidebar`) | 0.5.0+ | `listProjectIcons`: favicon data URLs; SVG and ICO are ignored |
+| Chat Sidebar (`chat-sidebar`) | 0.2.8+ | `images_get`: `project:<id>` entries |
+
+Not consumed: BB Sidebar (bytes come from a route that also needs an environment id; untested here), Threadspace (an emoji and colour, not artwork), Project Themes, Dockside and Compact UI (colours or hues only) and Chat Tabs (a settings string). Project Colors keeps its colours in browser `localStorage` and is never read.
+
+### Plugins that coexist
+
+Simple Sidebar Folders, Project Page, Thread Hover Cards, Sessions Switcher, Chat Tabs and Project Themes work next to Project Icons: they act on other elements (folder order, title links, row tints, tabs) or show no project visuals. Compact UI and Pane Workspaces colour the project label beside our image. Homepage shows its own artwork on the homepage only.
+
+**Project Colors:** on any project heading that shows our image, Project Icons hides the Project Colors dot and its palette, so two icons are not shown. Row tint and title colour stay, and the palette remains available from the thread header action. You lose the sidebar colour picker while an icon is shown.
+
+### Plugins that replace the thread list
+
+Plugins that replace BB's sidebar thread list (for example Cursor Sidebar, Nest, BB Sidebar, Chat Sidebar, Threadspace, Dockside, Ultra Sidebar and Tinted Threads) draw their own rows. Project Icons only decorates BB's native project headings, so while one of them is active our images may not appear in its list. Ultra Sidebar draws its own heading and favicon, so the two icon systems do not overlap. Tinted Threads likely reuses the native heading markup, which was not verified live. Adoption can still copy those plugins' artwork into Project Icons. Minus can hide a whole project group, including its image.
+
+### Where the editor is reachable
+
+BB has no extension slot for its native project menu, so the editor cannot be added there. Open it from **Edit project icon** in the thread actions menu, the thread header action or the Homepage project section, or from Settings.
+
+## Preview and host notes
 
 Use the current or enlarged draft PNG button to inspect it in a modal preview. Close preview or Escape returns to the editor without saving or cancelling its draft. The checkerboard shows transparency; the close control stays above the image. See [preview validation and host limitations](docs/png-preview.md).
 

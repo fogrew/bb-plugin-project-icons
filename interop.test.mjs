@@ -205,6 +205,9 @@ test("fetchPeerImage accepts bounded raster images and rejects everything else",
   await assert.rejects(fetchPeerImage(projectId, signal, response("<svg xmlns='http://www.w3.org/2000/svg'/>", { headers: { "content-type": "image/svg+xml" } })), /not a PNG, JPEG or WebP/);
   await assert.rejects(fetchPeerImage(projectId, signal, response(Buffer.from([0, 0, 1, 0, 1, 0]))), /not a PNG/);
   await assert.rejects(fetchPeerImage(projectId, signal, response(png, { headers: { "content-length": String(3 * 1024 * 1024) } })), /larger than 2 MB/);
+  const wide = Buffer.from(png);
+  wide.writeUInt32BE(5000, 16); wide.writeUInt32BE(5000, 20);
+  await assert.rejects(fetchPeerImage(projectId, signal, response(wide)), /dimensions are not supported/);
   const huge = new ReadableStream({ pull(controller) { controller.enqueue(new Uint8Array(512 * 1024).fill(1)); } });
   await assert.rejects(fetchPeerImage(projectId, signal, response(huge)), /larger than 2 MB/);
   await assert.rejects(fetchPeerImage(projectId, signal, () => Promise.reject(new Error("offline"))), /offline/);

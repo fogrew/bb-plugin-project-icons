@@ -9,15 +9,36 @@ import {
   ICON_CONTRACT_VERSION, PEER_PLUGIN_ID, PEER_TIMEOUT_MS, PLUGIN_ID, iconHttpPath, peerArtworkInput, peerArtworkOutput,
   peerAvailability, peerReply, resolveIconInput, resolveIconOutput,
 } from "./lib/artwork-contract";
+import { MAX_TARGETS, findCandidates, parseAdoption, targetFor, type AdoptionMap, type ScanDeps } from "./lib/adoption";
+import { HASH_PATTERN } from "./lib/content-hash";
+import { PEER_IDS } from "./lib/peers";
+import { TimedOut, withTimeout } from "./lib/deadline";
 
 const idSchema = z.string().regex(/^proj_[a-z0-9]{10,32}$/);
 const imageSchema = z.string().regex(/^[A-Za-z0-9+/]+={0,2}$/).max(90000);
 const UNDO_MS = 15000;
 const DISCOVERY_TIMEOUT_MS = 8000;
 const MAX_UNDO_OFFERS = 16;
+const SCAN_TIMEOUT_MS = 30000;
 const undoSchema = z.object({ token: z.string().uuid(), expiresAt: z.number() });
+const hashSchema = z.string().regex(HASH_PATTERN);
+const peerSchema = z.enum(PEER_IDS);
+const candidateSchema = z.object({
+  projectId: idSchema, peer: peerSchema, revision: z.number().nullable(), transport: z.enum(["inline", "http"]),
+  hash: hashSchema.nullable(), knownHash: hashSchema.nullable(),
+  mimeType: z.enum(["image/png", "image/jpeg", "image/webp"]).optional(), base64: z.string().max(350000).optional(),
+});
 export const rpcContract = defineRpcContract({
-  list: { input: z.null(), output: z.object({ projects: z.array(z.object({ id: idSchema, name: z.string(), revision: z.number().nullable() })) }) },
+  list: {
+    input: z.null(),
+    output: z.object({
+      automaticAdoption: z.boolean(),
+      projects: z.array(z.object({
+        id: idSchema, name: z.string(), revision: z.number().nullable(), automatic: z.boolean(),
+        source: z.object({ pluginId: peerSchema, importedAt: z.number() }).nullable(),
+      })),
+    }),
+  },
   save: { input: z.object({ projectId: idSchema, base64: imageSchema }).strict(), output: z.object({ revision: z.number() }) },
   remove: { input: z.object({ projectId: idSchema }).strict(), output: z.object({ removed: z.boolean() }) },
   removeWithUndo: { input: z.object({ projectId: idSchema }).strict(), output: z.object({ removed: z.boolean(), undo: undoSchema.nullable() }) },
@@ -36,6 +57,19 @@ export const rpcContract = defineRpcContract({
   },
   resolveIcon: { input: resolveIconInput, output: resolveIconOutput },
   peerArtwork: { input: peerArtworkInput, output: peerArtworkOutput },
+  adoptionScan: {
+    input: z.object({ skip: z.array(idSchema).max(64).optional() }).strict(),
+    output: z.object({ status: z.enum(["ok", "disabled"]), candidates: z.array(candidateSchema).max(12) }),
+  },
+  adoptPeer: {
+    input: z.object({ projectId: idSchema, peer: peerSchema, hash: hashSchema, base64: imageSchema, ifRevision: z.number().nullable() }).strict(),
+    output: z.object({
+      status: z.enum(["adopted", "skipped"]), revision: z.number().optional(),
+      reason: z.enum(["disabled", "unknown-project", "manual", "stale", "unchanged"]).optional(),
+    }),
+  },
+  setAutomaticAdoption: { input: z.object({ enabled: z.boolean() }).strict(), output: z.object({ enabled: z.boolean() }) },
+  enableAutomatic: { input: z.object({ projectId: idSchema }).strict(), output: z.object({ status: z.enum(["enabled", "has-icon"]) }) },
   restore: { input: z.object({ projectId: idSchema, token: z.string().uuid() }).strict(), output: z.object({ status: z.enum(["restored", "expired", "conflict"]), revision: z.number().optional() }) },
 });
 
@@ -75,6 +109,13 @@ export default function plugin(bb: BbPluginApi) {
     if (!Number.isSafeInteger(revision)) throw new Error("Icon revision exhausted");
     return revision;
   };
+  const readRecords = async (): Promise<AdoptionMap> => parseAdoption(await bb.storage.kv.get("adoption"));
+  const writeRecords = (records: AdoptionMap) => bb.storage.kv.set("adoption", records);
+  const markManual = async (projectId: string) => writeRecords({ ...await readRecords(), [projectId]: { mode: "manual" } });
+  const automaticEnabled = async () => (await bb.storage.kv.get<boolean>("automaticAdoption")) !== false;
+  const clientOnly = (context: { experimental_caller: { kind: string } }) => {
+    if (context.experimental_caller.kind !== "client") throw new Error("Not available to other plugins");
+  };
   let pending: Promise<void> = Promise.resolve();
   const serialize = <T>(work: () => Promise<T>): Promise<T> => {
     const result = pending.then(work);
@@ -94,7 +135,13 @@ export default function plugin(bb: BbPluginApi) {
       await bb.storage.kv.delete(`image:${id}`);
     }
     if (orphanIds.length) await bb.storage.kv.set("index", index);
-    return { projects, index };
+    const records = await readRecords();
+    const orphanRecords = Object.keys(records).filter(id => !projectIds.has(id));
+    if (orphanRecords.length) {
+      for (const id of orphanRecords) delete records[id];
+      await writeRecords(records);
+    }
+    return { projects, index, records };
   });
   const projectExists = async (id: string): Promise<boolean> => (await bb.sdk.projects.list()).some((project) => project.id === id);
   const remove = (projectId: string, withUndo: boolean) => serialize(async () => {
@@ -104,7 +151,7 @@ export default function plugin(bb: BbPluginApi) {
     // KV has no multi-key transaction. Fail closed even on a partially failed write.
     offers.delete(projectId);
     prune();
-    if (removed) await preserveIndexRevisions(index);
+    if (removed) { await markManual(projectId); await preserveIndexRevisions(index); }
     delete index[projectId];
     await bb.storage.kv.delete(`image:${projectId}`);
     await bb.storage.kv.set("index", index);
@@ -119,22 +166,34 @@ export default function plugin(bb: BbPluginApi) {
     bb.realtime.publish("changed", { projectId });
     return { removed, undo };
   });
-  class TimedOut extends Error {}
-  const withTimeout = async <T>(work: (signal: AbortSignal) => Promise<T>, ms = DISCOVERY_TIMEOUT_MS, parent?: AbortSignal): Promise<T> => {
-    const controller = new AbortController();
-    const relay = () => controller.abort();
-    if (parent?.aborted) relay(); else parent?.addEventListener("abort", relay, { once: true });
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const expired = new Promise<never>((_, reject) => {
-      timer = setTimeout(() => { controller.abort(); reject(new TimedOut("Repository search timed out")); }, ms);
-    });
-    try { return await Promise.race([work(controller.signal), expired]); }
-    finally { clearTimeout(timer); parent?.removeEventListener("abort", relay); }
+  const peerDeps: ScanDeps = {
+    listPlugins: async signal => (await bb.sdk.plugins.list({ signal })).plugins,
+    callPeer: (pluginId, method, input, signal) =>
+      bb.sdk.plugins.callRpc({ pluginId, method, input, outputSchema: z.unknown(), signal }),
+    warn: message => bb.log.warn(message),
+  };
+  let scanning: Promise<unknown> = Promise.resolve();
+  let scanOffset = 0;
+  const queueScan = <T>(work: () => Promise<T>): Promise<T> => {
+    const result = scanning.then(work);
+    scanning = result.then(() => undefined, () => undefined);
+    return result;
   };
   bb.rpc.register(rpcContract, {
     list: async () => {
-      const { projects, index } = await reconcile();
-      return { projects: projects.map((project) => ({ id: project.id, name: project.name, revision: index[project.id] ?? null })) };
+      const { projects, index, records } = await reconcile();
+      return {
+        automaticAdoption: await automaticEnabled(),
+        projects: projects.map(project => {
+          const record = records[project.id];
+          const peer = record?.mode === "peer" && record.revision === index[project.id] ? record : null;
+          return {
+            id: project.id, name: project.name, revision: index[project.id] ?? null,
+            automatic: targetFor(project.id, index[project.id], record) !== null,
+            source: peer ? { pluginId: peer.pluginId, importedAt: peer.importedAt } : null,
+          };
+        }),
+      };
     },
     save: ({ projectId, base64 }) => serialize(async () => {
       if (!(await projectExists(projectId))) throw new Error("Project not found");
@@ -142,6 +201,7 @@ export default function plugin(bb: BbPluginApi) {
       const index = await readIndex();
       offers.delete(projectId);
       prune();
+      await markManual(projectId);
       const revision = await nextRevision(index);
       // Reserve before image writes: failed mutations may leave gaps, never reused cache keys.
       await bb.storage.kv.set("revisionHighwater", revision);
@@ -156,7 +216,7 @@ export default function plugin(bb: BbPluginApi) {
       try {
         const results = await withTimeout(signal => Promise.all(SEARCH_QUERIES.map(
           query => bb.sdk.projects.files({ projectId, query, limit: "300", signal }),
-        )));
+        )), DISCOVERY_TIMEOUT_MS);
         const paths = results.flatMap(result => result.files.map(file => file.path));
         const selection = selectCandidates(paths);
         return { status: "ok" as const, ...selection, truncated: selection.truncated || results.some(result => result.truncated) };
@@ -168,7 +228,7 @@ export default function plugin(bb: BbPluginApi) {
     readCandidate: async ({ projectId, path }) => {
       if (!isDiscoverablePath(path) || !isAcceptedExtension(path)) throw new Error("Unsupported image path");
       if (!(await projectExists(projectId))) throw new Error("Project not found");
-      const file = await withTimeout(signal => bb.sdk.projects.fileContent({ projectId, path, signal })).catch(error => {
+      const file = await withTimeout(signal => bb.sdk.projects.fileContent({ projectId, path, signal }), DISCOVERY_TIMEOUT_MS).catch(error => {
         bb.log.warn(`Repository image read failed: ${error instanceof Error ? error.message : String(error)}`);
         throw new Error("Image could not be read");
       });
@@ -193,15 +253,17 @@ export default function plugin(bb: BbPluginApi) {
         const base64 = revision === undefined ? null : await bb.storage.kv.get<string>(`image:${projectId}`);
         if (revision === undefined || !base64) return { version: ICON_CONTRACT_VERSION, status: "missing" as const, projectId };
         if (ifRevision === revision) return { version: ICON_CONTRACT_VERSION, status: "not-modified" as const, projectId, revision };
+        const record = (await readRecords())[projectId];
         return {
           version: ICON_CONTRACT_VERSION, status: "found" as const, projectId, revision, source: "manual" as const, theme: "any" as const,
           mimeType: "image/png" as const, width: 64 as const, height: 64 as const, sizeBytes: Buffer.from(base64, "base64").length,
           base64, urlPath: iconHttpPath(projectId, revision),
+          ...(record?.mode === "peer" && record.revision === revision ? { adoptedFrom: record.pluginId } : {}),
         };
       });
     },
     peerArtwork: async ({ projectId }, context) => {
-      if (context.experimental_caller.kind !== "client") throw new Error("Peer artwork is not available to other plugins");
+      clientOnly(context);
       if (!(await projectExists(projectId))) throw new Error("Project not found");
       const unavailable = (reason: "timeout" | "error" | "malformed") => ({ status: "unavailable" as const, reason });
       try {
@@ -221,6 +283,71 @@ export default function plugin(bb: BbPluginApi) {
         bb.log.warn(`Peer artwork unavailable (${error instanceof Error ? error.constructor.name : "unknown"})`);
         return unavailable(error instanceof TimedOut ? "timeout" : "error");
       }
+    },
+    adoptionScan: async ({ skip }, context) => {
+      clientOnly(context);
+      if (!(await automaticEnabled())) return { status: "disabled" as const, candidates: [] };
+      const skipped = new Set(skip);
+      const { projects, index, records } = await reconcile();
+      const eligible = projects.flatMap(project => {
+        const target = skipped.has(project.id) ? null : targetFor(project.id, index[project.id], records[project.id]);
+        return target ? [target] : [];
+      });
+      const start = eligible.length ? scanOffset % eligible.length : 0;
+      scanOffset += MAX_TARGETS;
+      const window = [...eligible.slice(start), ...eligible.slice(0, start)];
+      try {
+        const candidates = await queueScan(() => withTimeout(
+          signal => findCandidates(peerDeps, window, signal), SCAN_TIMEOUT_MS, context.experimental_signal));
+        return { status: "ok" as const, candidates };
+      } catch (error) {
+        bb.log.warn(`Peer artwork scan failed (${error instanceof TimedOut ? "timeout" : "error"})`);
+        return { status: "ok" as const, candidates: [] };
+      }
+    },
+    adoptPeer: ({ projectId, peer, hash, base64, ifRevision }, context) => {
+      clientOnly(context);
+      return serialize(async () => {
+        const skipped = (reason: "disabled" | "unknown-project" | "manual" | "stale" | "unchanged") => ({ status: "skipped" as const, reason });
+        if (!(await automaticEnabled())) return skipped("disabled");
+        if (!(await projectExists(projectId))) return skipped("unknown-project");
+        const index = await readIndex();
+        const records = await readRecords();
+        const target = targetFor(projectId, index[projectId], records[projectId]);
+        if (!target) return skipped("manual");
+        if ((index[projectId] ?? null) !== ifRevision || (target.source !== null && target.source !== peer)) return skipped("stale");
+        if (target.knownHash === hash) return skipped("unchanged");
+        const bytes = decodePng(base64);
+        const revision = await nextRevision(index);
+        await bb.storage.kv.set("revisionHighwater", revision);
+        await bb.storage.kv.set(`image:${projectId}`, bytes.toString("base64"));
+        await bb.storage.kv.set("index", { ...index, [projectId]: revision });
+        await writeRecords({ ...records, [projectId]: { mode: "peer", pluginId: peer, importedAt: Date.now(), hash, revision } });
+        offers.delete(projectId);
+        prune();
+        bb.realtime.publish("changed", { projectId });
+        bb.log.info(`Adopted artwork from ${peer}`);
+        return { status: "adopted" as const, revision };
+      });
+    },
+    setAutomaticAdoption: async ({ enabled }, context) => {
+      clientOnly(context);
+      await bb.storage.kv.set("automaticAdoption", enabled);
+      bb.realtime.publish("changed", { adoption: true });
+      return { enabled };
+    },
+    enableAutomatic: ({ projectId }, context) => {
+      clientOnly(context);
+      return serialize(async () => {
+        if (!(await projectExists(projectId))) throw new Error("Project not found");
+        const records = await readRecords();
+        if (records[projectId]?.mode === "peer") return { status: "enabled" as const };
+        if (projectId in await readIndex()) return { status: "has-icon" as const };
+        delete records[projectId];
+        await writeRecords(records);
+        bb.realtime.publish("changed", { projectId });
+        return { status: "enabled" as const };
+      });
     },
     restore: ({ projectId, token }) => serialize(async () => {
       const exists = await projectExists(projectId);

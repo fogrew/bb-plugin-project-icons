@@ -8,6 +8,8 @@ import { createSettingsState } from "./settings-state";
 import { IconPicker } from "./components/icon-picker";
 import { PngPreview } from "./components/icon-preview";
 import { RemovalControls } from "./components/removal-controls";
+import { AdoptionStatus, AutomaticToggle } from "./components/adoption-controls";
+import { AutoAdopt, SCAN_EVENT } from "./components/auto-adopt";
 import { fetchPeerImage } from "./lib/peer-image";
 import "./app.css";
 import { version } from "./package.json";
@@ -20,15 +22,24 @@ function Settings({ projectId }: { projectId?: string } = {}) {
   const state = useMemo(() => createSettingsState({
     list: async () => {
       const result = await rpc.call("list");
-      return projectId ? { projects: result.projects.filter(row => row.id === projectId) } : result;
+      return projectId ? { ...result, projects: result.projects.filter(row => row.id === projectId) } : result;
     },
     save: (input) => rpc.call("save", input),
     remove: (input) => rpc.call("removeWithUndo", input),
     restore: (input) => rpc.call("restore", input),
   }, () => window.dispatchEvent(new Event("bb-project-icons-changed"))), [rpc, projectId]);
-  const { projects, selected, loading, refreshing, loadError, operation } =
+  const { projects, selected, loading, refreshing, loadError, operation, automaticAdoption } =
     useSyncExternalStore(state.subscribe, state.getSnapshot);
   const [query, setQuery] = useState("");
+  const [adoptionBusy, setAdoptionBusy] = useState(false);
+  const [adoptionError, setAdoptionError] = useState("");
+  const changeAdoption = async (work: () => Promise<unknown>, failure: string) => {
+    setAdoptionBusy(true);
+    setAdoptionError("");
+    try { await work(); window.dispatchEvent(new Event(SCAN_EVENT)); }
+    catch { setAdoptionError(failure); }
+    finally { setAdoptionBusy(false); void state.refresh(); }
+  };
   useEffect(() => {
     void state.refresh();
     return state.cancel;
@@ -51,11 +62,16 @@ function Settings({ projectId }: { projectId?: string } = {}) {
         {projects.some((row) => row.id !== project.id && row.name === project.name) &&
           <small className="bb-project-icons-id">{project.id}</small>}
       </div>
+      <AdoptionStatus project={project} automaticAdoption={automaticAdoption} busy={busy || adoptionBusy}
+        onEnable={() => void changeAdoption(() => rpc.call("enableAutomatic", { projectId: project.id }), "Could not re-enable automatic icons. Try again.")} />
+      {adoptionError && <p role="alert">{adoptionError}</p>}
       <IconPicker key={project.id} project={project} state={state} busy={busy} repository={repository} peerArtwork={peerArtwork} />
       <RemovalControls project={project} state={state} />
     </fieldset>;
   return <div className="bb-project-icons-settings">
     <p className="bb-project-icons-help">Version {version}</p>
+    {!projectId && !loading && !loadError && <AutomaticToggle enabled={automaticAdoption} busy={adoptionBusy}
+      onChange={enabled => void changeAdoption(() => rpc.call("setAutomaticAdoption", { enabled }), "Could not change automatic icons. Try again.")} />}
     {loading && <p role="status">Loading projects…</p>}
     {loadError && <div className="bb-project-icons-error">
       <p role="alert">{loadError}</p>
@@ -176,6 +192,7 @@ export default definePluginApp((app) => {
   app.slots.experimental_appOverlay({ id: "sidebar-updates", component: SidebarUpdates });
   app.slots.homepageSection({ id: "edit-icon", title: "Project icon", component: HomepageIconAction });
   app.slots.experimental_appOverlay({ id: "icon-editor", component: ContextualEditor });
+  app.slots.experimental_appOverlay({ id: "auto-adopt", component: AutoAdopt });
   for (const placement of ["menu", "header"] as const) {
     app.slots.experimental_threadAction({
       id: `edit-project-icon-${placement}`, title: "Edit project icon", icon: "Image", group: "project-icons", placement,

@@ -27,7 +27,7 @@ export const resolveIconOutput = z.discriminatedUnion("status", [
   z.object({
     version, status: z.literal("found"), projectId, revision: z.number(), source: z.literal("manual"),
     theme: z.literal("any"), mimeType: z.literal("image/png"), width: z.literal(64), height: z.literal(64),
-    sizeBytes: z.number(), base64: z.string(), urlPath: z.string(),
+    sizeBytes: z.number(), base64: z.string(), urlPath: z.string(), adoptedFrom: z.string().optional(),
   }),
   z.object({ version, status: z.literal("not-modified"), projectId, revision: z.number() }),
   z.object({ version, status: z.literal("missing"), projectId }),
@@ -54,7 +54,7 @@ export const peerReply = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("missing") }),
 ]);
 
-type PluginRow = { id: string; version: string; enabled: boolean; status: string };
+export type PluginRow = { id: string; version: string; enabled: boolean; status: string };
 
 export function versionAtLeast(value: string, minimum: readonly number[]): boolean {
   const match = /^(\d+)\.(\d+)\.(\d+)/.exec(value);
@@ -66,12 +66,13 @@ export function versionAtLeast(value: string, minimum: readonly number[]): boole
   return true;
 }
 
-export function peerAvailability(plugins: readonly PluginRow[]):
-  { reason: Exclude<PeerUnavailableReason, "timeout" | "error" | "malformed"> } | { ok: true; version: string } {
-  const peer = plugins.find(plugin => plugin.id === PEER_PLUGIN_ID);
+export function peerAvailability(
+  plugins: readonly PluginRow[], id: string = PEER_PLUGIN_ID, minimum: readonly number[] = PEER_MIN_VERSION,
+): { reason: Exclude<PeerUnavailableReason, "timeout" | "error" | "malformed"> } | { ok: true; version: string } {
+  const peer = plugins.find(plugin => plugin.id === id);
   if (!peer) return { reason: "not-installed" };
   if (!peer.enabled || peer.status === "disabled") return { reason: "disabled" };
-  if (peer.status === "incompatible" || !versionAtLeast(peer.version, PEER_MIN_VERSION)) return { reason: "incompatible" };
+  if (peer.status === "incompatible" || !versionAtLeast(peer.version, minimum)) return { reason: "incompatible" };
   if (peer.status !== "running" && peer.status !== "degraded") return { reason: "not-running" };
   return { ok: true, version: peer.version };
 }
