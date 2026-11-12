@@ -20,6 +20,7 @@ with the explicit pre-1.0 policy in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ### Added
 
+- ICO support: `.ico` files are suggested by **Find icons in repository** and accepted by choose, drop and paste. The header, directory, entry bounds, 64-entry and 2 MB limits are validated strictly on the host and again in the browser, the largest valid PNG or BMP entry is decoded by the browser and exported as the usual 64 x 64 PNG, and `favicon.ico` is ranked alongside PNG candidates. SVG stays rejected and Homepage and other plugin artwork is unchanged ([docs](docs/repository-discovery.md#ico-files)). Verified in headless Chrome with mocked SDK and RPC; live BB verification is pending.
 - Automatic adoption of artwork from installed Homepage, Cursor Sidebar, Nest and Chat Sidebar plugins for projects without an icon, refreshed while the icon is still auto-imported and the same plugin's artwork changes. Saving or removing an icon marks the project manual for good; Settings shows each project's source, a global on/off toggle, and **Re-enable automatic icons** in the editor. Peer replies are version-checked, bounded and re-rendered to 64 x 64 PNGs; the peer RPCs are undocumented and found in source ([docs](docs/artwork-interoperability.md)).
 - README Compatibility section covering coexisting plugins, the Project Colors dot interaction, plugins that replace the thread list, and where the editor is reachable.
 - Edit project icons from the homepage, thread actions menu and open thread header in a shared contextual editor.
