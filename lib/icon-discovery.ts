@@ -1,10 +1,13 @@
+import { IcoError, extractIconImage, looksLikeIco, type IconImage } from "./ico.ts";
+import { imageDimensions, withinPeerBounds } from "./image-bounds.ts";
+
 export const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
 export const MAX_CANDIDATES = 12;
 export const MAX_DEPTH = 8;
 export const MAX_PATH_LENGTH = 240;
 export const SEARCH_QUERIES = ["favicon", "icon", "logo", "apple-touch", "android-chrome", "ic_launcher"] as const;
 
-const ACCEPTED = new Set(["png", "jpg", "jpeg", "webp"]);
+const ACCEPTED = new Set(["png", "jpg", "jpeg", "webp", "ico"]);
 const IGNORED_DIRECTORIES = new Set([
   ".git", "node_modules", "dist", "build", "out", "coverage", "vendor", "target", ".next", ".cache", "__pycache__",
   ".claude", "bin", "obj",
@@ -78,7 +81,8 @@ function rank(path: string): number {
     : name.includes("logo") ? 2 : name.startsWith("icon") ? 3 : 4;
   const variant = /^ic[_-]launcher.*(round|foreground|background|monochrome)/.test(name) ? 1 : 0;
   const location = /(^|\/)(public|static|assets|resources|images|img|icons?|src-tauri)(\/|$)/i.test(path) ? 0 : 1;
-  return nameScore * 100 + sizeTier(path, name) * 10 + variant * 25 + location * 20 + depth;
+  const container = extensionOf(path) === "ico" ? 0.5 : 0;
+  return nameScore * 100 + sizeTier(path, name) * 10 + variant * 25 + location * 20 + depth + container;
 }
 
 export function selectCandidates(paths: readonly string[]): { candidates: Candidate[]; rejected: Rejected; truncated: boolean } {
@@ -92,7 +96,7 @@ export function selectCandidates(paths: readonly string[]): { candidates: Candid
     if (!matchesIconName(raw)) continue;
     const extension = extensionOf(raw);
     if (extension === "svg") { rejected.svg += 1; continue; }
-    if (!ACCEPTED.has(extension)) { if (["ico", "gif", "bmp", "avif", "tiff"].includes(extension)) rejected.unsupported += 1; continue; }
+    if (!ACCEPTED.has(extension)) { if (["gif", "bmp", "avif", "tiff"].includes(extension)) rejected.unsupported += 1; continue; }
     accepted.push(raw);
   }
   accepted.sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
@@ -112,7 +116,21 @@ export function sniffImage(bytes: Uint8Array): "png" | "jpeg" | "webp" | null {
   return null;
 }
 
-export function extensionMatchesFormat(path: string, format: "png" | "jpeg" | "webp"): boolean {
+export function sniffRepositoryImage(bytes: Uint8Array): "png" | "jpeg" | "webp" | "ico" | null {
+  return looksLikeIco(bytes) ? "ico" : sniffImage(bytes);
+}
+
+export function extensionMatchesFormat(path: string, format: "png" | "jpeg" | "webp" | "ico"): boolean {
   const extension = extensionOf(path);
+  if (format === "ico") return extension === "ico";
+  if (extension === "ico") return true;
   return format === "jpeg" ? extension === "jpg" || extension === "jpeg" : extension === format;
+}
+
+export function resolveIcoFile(bytes: Uint8Array): IconImage {
+  if (looksLikeIco(bytes)) return extractIconImage(bytes);
+  const format = sniffImage(bytes);
+  if (!format) throw new IcoError("File content is not a supported image");
+  if (!withinPeerBounds(imageDimensions(bytes, format))) throw new IcoError("Image dimensions are not supported");
+  return { mimeType: `image/${format}`, bytes };
 }

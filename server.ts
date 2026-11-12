@@ -3,7 +3,8 @@ import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import { decodePng } from "./lib/png-validation";
 import {
-  MAX_IMAGE_BYTES, SEARCH_QUERIES, extensionMatchesFormat, isAcceptedExtension, isDiscoverablePath, selectCandidates, sniffImage,
+  MAX_IMAGE_BYTES, SEARCH_QUERIES, extensionMatchesFormat, extensionOf, isAcceptedExtension, isDiscoverablePath, resolveIcoFile,
+  selectCandidates, sniffRepositoryImage,
 } from "./lib/icon-discovery";
 import {
   ICON_CONTRACT_VERSION, PEER_PLUGIN_ID, PEER_TIMEOUT_MS, PLUGIN_ID, iconHttpPath, peerArtworkInput, peerArtworkOutput,
@@ -58,7 +59,7 @@ export const rpcContract = defineRpcContract({
   },
   readCandidate: {
     input: z.object({ projectId: idSchema, path: z.string().max(240) }).strict(),
-    output: z.object({ base64: z.string(), mimeType: z.enum(["image/png", "image/jpeg", "image/webp"]), sizeBytes: z.number() }),
+    output: z.object({ base64: z.string(), mimeType: z.enum(["image/png", "image/jpeg", "image/webp", "image/x-icon"]), sizeBytes: z.number() }),
   },
   resolveIcon: { input: resolveIconInput, output: resolveIconOutput },
   peerArtwork: { input: peerArtworkInput, output: peerArtworkOutput },
@@ -250,8 +251,12 @@ export default function plugin(bb: BbPluginApi) {
       if (file.contentEncoding !== "base64") throw new Error("Not an image file");
       const bytes = Buffer.from(file.content, "base64");
       if (bytes.length > MAX_IMAGE_BYTES) throw new Error("Image is larger than 2 MB");
-      const format = sniffImage(bytes);
+      const format = sniffRepositoryImage(bytes);
       if (!format || !extensionMatchesFormat(path, format)) throw new Error("File content is not a supported image");
+      if (format === "ico" || extensionOf(path) === "ico") {
+        const image = resolveIcoFile(bytes);
+        return { base64: Buffer.from(image.bytes).toString("base64"), mimeType: image.mimeType, sizeBytes: image.bytes.length };
+      }
       return { base64: bytes.toString("base64"), mimeType: `image/${format}` as const, sizeBytes: bytes.length };
     },
     remove: async ({ projectId }) => ({ removed: (await remove(projectId, false)).removed }),

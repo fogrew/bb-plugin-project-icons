@@ -51,7 +51,7 @@ export function ImageEditor(props: EditorProps) {
       if (!await draft.load(() => decodeImage(file))) throw new Error("Draft cancelled.");
       const image = draft.current();
       if (image) drawIcon(canvas, image, defaultCrop);
-    }, "Could not read image. Choose a PNG, JPEG, or WebP image under 2 MB.");
+    }, "Could not read image. Choose a PNG, JPEG, WebP, or ICO image under 2 MB.");
   };
   const focus = () => input.current?.focus();
   const image = draft.current();

@@ -3,9 +3,11 @@ import assert from "node:assert/strict";
 import { createFakePluginHost } from "@get-bb/plugin-sdk/testing";
 import plugin from "./dist/server.js";
 import { transparentPng as png } from "./test-fixtures/png.mjs";
-import { MAX_CANDIDATES, isDiscoverablePath, isSafeRelativePath, selectCandidates, sniffImage } from "./lib/icon-discovery.ts";
+import { bmpEntry, buildIco, jpegBytes, pngEntry, pngWithSize, webpBytes } from "./test-fixtures/ico.mjs";
+import { MAX_CANDIDATES, isDiscoverablePath, isSafeRelativePath, selectCandidates, sniffImage, sniffRepositoryImage } from "./lib/icon-discovery.ts";
 
 const projectId = "proj_aaaaaaaaaa";
+const patchedCopy = (bytes, change) => { const copy = Buffer.from(bytes); change(copy); return copy; };
 const host = (sdkProjects) => {
   const { bb, harness } = createFakePluginHost({
     pluginId: "project-icons",
@@ -18,7 +20,7 @@ const host = (sdkProjects) => {
 test("selection ranks, bounds and rejects unsafe or ignored paths", () => {
   const paths = [
     "node_modules/pkg/logo.png", "../escape/logo.png", "/abs/logo.png", "a\b/logo.png", "a/b:stream/logo.png", "ab/logo.png", "public/favicon.png", "docs/logo.svg",
-    "src/deep/er/than/eight/levels/of/dirs/logo.png", "assets/logo.webp", "assets/photo.png", "assets/icon.ico", "icon.jpg",
+    "src/deep/er/than/eight/levels/of/dirs/logo.png", "assets/logo.webp", "assets/photo.png", "assets/icon.gif", "icon.jpg",
     "public/favicon.png", ...Array.from({ length: 30 }, (_, i) => `img/logo-${i}.png`),
   ];
   const result = selectCandidates(paths);
@@ -48,7 +50,7 @@ test("selection finds framework icon conventions", () => {
 
 test("selection keeps build output, tool directories and non-image formats out", () => {
   const paths = ["build/static/logo.png", "build/logo.png", "bin/Debug/icon.png", "obj/icon.png", ".claude/worktrees/a/Launcher/Resources/logo.png",
-    "dist/icons/512x512.png", "icons/32x32.ico", "icons/icon.svg", "public/favicon.ico",
+    "dist/icons/512x512.png", "icons/32x32.gif", "icons/icon.svg", "public/favicon.bmp",
     "build/icons/node_modules/a/icon.png", "build/icons/dist/logo.png", "build/icons/sub/build/icon.png", "packages/app/build/icon.png"];
   const result = selectCandidates(paths);
   assert.deepEqual(result.candidates, []);
@@ -142,5 +144,110 @@ test("readCandidate validates path, size, encoding and content", async () => {
 test("readCandidate hides host error details", async () => {
   const h = host({ fileContent: async () => { throw new Error("EACCES /home/secret/logo.png"); } });
   await assert.rejects(h.call("readCandidate", { projectId, path: "logo.png" }), error => error.message === "Image could not be read");
+  await h.dispose();
+});
+
+test("selection accepts ICO candidates and keeps other containers unsupported", () => {
+  const result = selectCandidates(["public/favicon.ico", "icons/32x32.ico", "assets/logo.gif", "assets/logo.svg", "static/ICON.ICO", "node_modules/x/favicon.ico", "docs/photo.ico"]);
+  assert.deepEqual(result.candidates.map(c => c.path).sort(), ["icons/32x32.ico", "public/favicon.ico", "static/ICON.ICO"]);
+  assert.deepEqual(result.rejected, { svg: 1, unsupported: 1 });
+  assert.ok(isDiscoverablePath("public/favicon.ico") && isDiscoverablePath("src-tauri/icons/icon.ico"));
+  assert.ok(!isDiscoverablePath("node_modules/x/favicon.ico") && !isDiscoverablePath("docs/photo.ico"));
+});
+
+test("favicon.ico competes with PNG candidates by size class, then yields ties to PNG", () => {
+  const order = selectCandidates([
+    "public/favicon.ico", "public/favicon.png", "public/favicon-16x16.png", "public/favicon-32x32.png", "public/favicon-192x192.png",
+  ]).candidates.map(c => c.path);
+  assert.deepEqual(order, [
+    "public/favicon-192x192.png", "public/favicon.png", "public/favicon.ico", "public/favicon-32x32.png", "public/favicon-16x16.png",
+  ]);
+  const roots = selectCandidates(["assets/logo.png", "favicon.ico"]).candidates.map(c => c.path);
+  assert.deepEqual(roots, ["favicon.ico", "assets/logo.png"]);
+  const sized = selectCandidates(["icons/512x512.ico", "icons/512x512.png", "icons/32x32.ico"]).candidates.map(c => c.path);
+  assert.deepEqual(sized, ["icons/512x512.png", "icons/512x512.ico", "icons/32x32.ico"]);
+});
+
+test("readCandidate extracts the largest ICO entry as a PNG or a standalone ICO", async () => {
+  const pngs = [pngEntry(16), pngEntry(48), pngEntry(32)];
+  const bmps = [bmpEntry(16), bmpEntry(32), bmpEntry(24)];
+  const files = { "public/favicon.ico": buildIco(pngs), "icons/icon.ico": buildIco(bmps) };
+  const h = host({ fileContent: async ({ path }) => ({ content: files[path].toString("base64"), contentEncoding: "base64", mimeType: "image/x-icon", sizeBytes: files[path].length }) });
+  const fromPng = await h.call("readCandidate", { projectId, path: "public/favicon.ico" });
+  assert.equal(fromPng.mimeType, "image/png");
+  assert.ok(Buffer.from(fromPng.base64, "base64").equals(pngs[1].data));
+  assert.equal(fromPng.sizeBytes, pngs[1].data.length);
+  const fromBmp = await h.call("readCandidate", { projectId, path: "icons/icon.ico" });
+  assert.equal(fromBmp.mimeType, "image/x-icon");
+  const out = Buffer.from(fromBmp.base64, "base64");
+  assert.equal(fromBmp.sizeBytes, out.length);
+  assert.deepEqual([out.readUInt16LE(2), out.readUInt16LE(4), out[6]], [1, 1, 32]);
+  assert.ok(out.subarray(22).equals(bmps[1].data));
+  await h.dispose();
+});
+
+test("readCandidate rejects ICO extension mismatches, hostile directories and oversize files", async () => {
+  const good = buildIco([pngEntry(32)]);
+  const content = { value: good };
+  const h = host({ fileContent: async () => ({ content: content.value.toString("base64"), contentEncoding: "base64", mimeType: "image/x-icon", sizeBytes: content.value.length }) });
+  for (const path of ["public/logo.png", "public/logo.jpg", "public/logo.webp"]) {
+    await assert.rejects(h.call("readCandidate", { projectId, path }), /not a supported image/, path);
+  }
+  content.value = Buffer.from("<svg xmlns='http://www.w3.org/2000/svg'/>");
+  await assert.rejects(h.call("readCandidate", { projectId, path: "public/favicon.ico" }), /not a supported image/);
+  content.value = patchedCopy(good, copy => copy.writeUInt16LE(2, 2));
+  await assert.rejects(h.call("readCandidate", { projectId, path: "public/favicon.ico" }), /not a supported image/);
+  const hostile = {
+    truncated: good.subarray(0, good.length - 1),
+    "offset out of bounds": patchedCopy(good, copy => copy.writeUInt32LE(good.length + 1, 18)),
+    "entry count": patchedCopy(good, copy => copy.writeUInt16LE(0xffff, 4)),
+  };
+  for (const [name, bytes] of Object.entries(hostile)) {
+    content.value = bytes;
+    await assert.rejects(h.call("readCandidate", { projectId, path: "public/favicon.ico" }), /malformed or unsupported/, name);
+  }
+  const lying = pngEntry(32);
+  lying.data = patchedCopy(lying.data, copy => { copy.writeUInt32BE(8192, 16); copy.writeUInt32BE(8192, 20); });
+  content.value = buildIco([lying]);
+  await assert.rejects(h.call("readCandidate", { projectId, path: "public/favicon.ico" }), /no usable image/);
+  const oversized = host({ fileContent: async () => ({ content: good.toString("base64"), contentEncoding: "base64", mimeType: "image/x-icon", sizeBytes: 3 * 1024 * 1024 }) });
+  await assert.rejects(oversized.call("readCandidate", { projectId, path: "public/favicon.ico" }), /larger than 2 MB/);
+  await oversized.dispose();
+  await h.dispose();
+});
+
+test("readCandidate still returns PNG candidates unchanged", async () => {
+  const h = host({ fileContent: async () => ({ content: png.toString("base64"), contentEncoding: "base64", mimeType: "image/png", sizeBytes: png.length }) });
+  assert.deepEqual(await h.call("readCandidate", { projectId, path: "public/favicon.png" }), { base64: png.toString("base64"), mimeType: "image/png", sizeBytes: png.length });
+  await assert.rejects(h.call("readCandidate", { projectId, path: "public/favicon.bmp" }), /Unsupported image path/);
+  await h.dispose();
+});
+
+test("readCandidate treats raster content under an .ico name as that format and keeps the reverse rejected", async () => {
+  const jpeg = jpegBytes(64, 64);
+  const webp = webpBytes(64, 64);
+  const ico = buildIco([pngEntry(32)]);
+  const content = { value: png };
+  const h = host({ fileContent: async () => ({ content: content.value.toString("base64"), contentEncoding: "base64", mimeType: "image/x-icon", sizeBytes: content.value.length }) });
+  for (const [bytes, mimeType, extension] of [[png, "image/png", "png"], [jpeg, "image/jpeg", "jpg"], [webp, "image/webp", "webp"]]) {
+    content.value = bytes;
+    const result = await h.call("readCandidate", { projectId, path: "public/favicon.ico" });
+    assert.deepEqual([result.mimeType, result.sizeBytes], [mimeType, bytes.length], mimeType);
+    assert.ok(Buffer.from(result.base64, "base64").equals(bytes), mimeType);
+    for (const path of ["public/logo.png", "public/logo.jpg", "public/logo.webp"]) {
+      if (!path.endsWith(extension)) await assert.rejects(h.call("readCandidate", { projectId, path }), /not a supported image/, `${mimeType} as ${path}`);
+    }
+  }
+  for (const bytes of [pngWithSize(png, 9000, 64), pngWithSize(png, 4096, 4097), jpegBytes(5000, 64), webpBytes(64, 9000)]) {
+    content.value = bytes;
+    await assert.rejects(h.call("readCandidate", { projectId, path: "public/favicon.ico" }), /dimensions are not supported/);
+  }
+  content.value = Buffer.from("GIF89a-not-an-image");
+  await assert.rejects(h.call("readCandidate", { projectId, path: "public/favicon.ico" }), /not a supported image/);
+  content.value = ico;
+  for (const path of ["public/logo.png", "public/logo.jpg", "public/logo.jpeg", "public/logo.webp"]) {
+    await assert.rejects(h.call("readCandidate", { projectId, path }), /not a supported image/, path);
+  }
+  assert.equal((await h.call("readCandidate", { projectId, path: "public/favicon.ico" })).mimeType, "image/png");
   await h.dispose();
 });
