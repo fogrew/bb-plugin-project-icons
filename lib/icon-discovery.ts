@@ -2,13 +2,17 @@ export const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
 export const MAX_CANDIDATES = 12;
 export const MAX_DEPTH = 8;
 export const MAX_PATH_LENGTH = 240;
-export const SEARCH_QUERIES = ["favicon", "icon", "logo"] as const;
+export const SEARCH_QUERIES = ["favicon", "icon", "logo", "apple-touch", "android-chrome", "ic_launcher"] as const;
 
 const ACCEPTED = new Set(["png", "jpg", "jpeg", "webp"]);
 const IGNORED_DIRECTORIES = new Set([
   ".git", "node_modules", "dist", "build", "out", "coverage", "vendor", "target", ".next", ".cache", "__pycache__",
+  ".claude", "bin", "obj",
 ]);
-const NAME_PATTERN = /(favicon|icon|logo)/i;
+const NAME_PATTERN = /(favicon|icon|logo|apple-touch|android-chrome|ic[_-]launcher)/i;
+const ICON_DIRECTORY = /^(icons?|logos?|favicons?|app-?icons?|mipmap-[a-z0-9]+|.+\.(appiconset|iconset))$/i;
+const SIZED_NAME = /^\d{2,4}(x\d{2,4})?(@\dx)?\.[a-z]+$/i;
+const BUILD_ICON = /^build\/(icons?\/|icon\.)/i;
 
 export type Candidate = { path: string; name: string };
 export type Rejected = { svg: number; unsupported: number };
@@ -33,20 +37,48 @@ export function isAcceptedExtension(path: string): boolean {
 }
 
 export function isDiscoverablePath(path: string): boolean {
-  return isSafeRelativePath(path) && !inIgnoredDirectory(path) && NAME_PATTERN.test(path.slice(path.lastIndexOf("/") + 1));
+  return isSafeRelativePath(path) && !inIgnoredDirectory(path) && matchesIconName(path);
 }
 
 function inIgnoredDirectory(path: string): boolean {
-  return path.split("/").slice(0, -1).some(segment => IGNORED_DIRECTORIES.has(segment.toLowerCase()));
+  const directories = path.split("/").slice(0, -1);
+  if (BUILD_ICON.test(path)) directories.shift();
+  return directories.some(segment => IGNORED_DIRECTORIES.has(segment.toLowerCase()));
+}
+
+function matchesIconName(path: string): boolean {
+  const name = path.slice(path.lastIndexOf("/") + 1);
+  if (NAME_PATTERN.test(name)) return true;
+  if (!SIZED_NAME.test(name)) return false;
+  return path.split("/").slice(0, -1).some(segment => ICON_DIRECTORY.test(segment));
+}
+
+const DENSITY_TIERS: Record<string, number> = { xxxhdpi: 0, xxhdpi: 1, xhdpi: 2, hdpi: 3, mdpi: 4, ldpi: 5 };
+
+function sizeTier(path: string, name: string): number {
+  const pair = /(\d{2,4})x(\d{2,4})/.exec(name);
+  const single = pair ? null : [...name.matchAll(/(?:^|[-_])(\d{2,4})(?=[.@_-]|$)/g)]
+    .find(match => !/^(19[9]\d|20\d\d)$/.test(match[1]));
+  const multiplier = Number(/@(\d)x/.exec(name)?.[1] ?? 1);
+  const width = Number(pair?.[1] ?? single?.[1]) * multiplier;
+  if (Number.isFinite(width)) {
+    const height = pair ? Number(pair[2]) * multiplier : width;
+    const base = Math.min(5, Math.max(0, 9 - Math.log2(Math.min(width, height))));
+    return width === height ? base : Math.max(base, 3);
+  }
+  const density = /(?:^|\/)(?:mipmap|drawable)-(xxxhdpi|xxhdpi|xhdpi|hdpi|mdpi|ldpi)(?:-|\/)/.exec(path.toLowerCase());
+  return density ? DENSITY_TIERS[density[1]] : 2;
 }
 
 function rank(path: string): number {
   const name = path.slice(path.lastIndexOf("/") + 1).toLowerCase();
   const depth = path.split("/").length;
-  const nameScore = name.startsWith("favicon") ? 0 : name.startsWith("logo") ? 1 : name.includes("logo") ? 2
-    : name.startsWith("icon") ? 3 : 4;
-  const location = /(^|\/)(public|static|assets|resources|images|img)(\/|$)/i.test(path) ? 0 : 1;
-  return nameScore * 100 + location * 20 + depth;
+  const nameScore = name.startsWith("favicon") ? 0
+    : name.startsWith("logo") || /^(app-?icon|apple-touch|android-chrome|ic[_-]launcher)/.test(name) ? 1
+    : name.includes("logo") ? 2 : name.startsWith("icon") ? 3 : 4;
+  const variant = /^ic[_-]launcher.*(round|foreground|background|monochrome)/.test(name) ? 1 : 0;
+  const location = /(^|\/)(public|static|assets|resources|images|img|icons?|src-tauri)(\/|$)/i.test(path) ? 0 : 1;
+  return nameScore * 100 + sizeTier(path, name) * 10 + variant * 25 + location * 20 + depth;
 }
 
 export function selectCandidates(paths: readonly string[]): { candidates: Candidate[]; rejected: Rejected; truncated: boolean } {
@@ -57,8 +89,7 @@ export function selectCandidates(paths: readonly string[]): { candidates: Candid
     if (typeof raw !== "string" || seen.has(raw)) continue;
     seen.add(raw);
     if (!isSafeRelativePath(raw) || inIgnoredDirectory(raw)) continue;
-    const name = raw.slice(raw.lastIndexOf("/") + 1);
-    if (!NAME_PATTERN.test(name)) continue;
+    if (!matchesIconName(raw)) continue;
     const extension = extensionOf(raw);
     if (extension === "svg") { rejected.svg += 1; continue; }
     if (!ACCEPTED.has(extension)) { if (["ico", "gif", "bmp", "avif", "tiff"].includes(extension)) rejected.unsupported += 1; continue; }
