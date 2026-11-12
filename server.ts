@@ -118,6 +118,10 @@ export default function plugin(bb: BbPluginApi) {
   const readRecords = async (): Promise<AdoptionMap> => parseAdoption(await bb.storage.kv.get("adoption"));
   const writeRecords = (records: AdoptionMap) => bb.storage.kv.set("adoption", records);
   const markManual = async (projectId: string) => writeRecords({ ...await readRecords(), [projectId]: { mode: "manual" } });
+  const resetToAutomatic = async (projectId: string) => {
+    const { [projectId]: _dropped, ...rest } = await readRecords();
+    await writeRecords(rest);
+  };
   const automaticEnabled = async () => (await bb.storage.kv.get<boolean>("automaticAdoption")) !== false;
   const clientOnly = (context: { experimental_caller: { kind: string } }) => {
     if (context.experimental_caller.kind !== "client") throw new Error("Not available to other plugins");
@@ -157,7 +161,7 @@ export default function plugin(bb: BbPluginApi) {
     // KV has no multi-key transaction. Fail closed even on a partially failed write.
     offers.delete(projectId);
     prune();
-    if (removed) { await markManual(projectId); await preserveIndexRevisions(index); }
+    if (removed) { await resetToAutomatic(projectId); await preserveIndexRevisions(index); }
     delete index[projectId];
     await bb.storage.kv.delete(`image:${projectId}`);
     await bb.storage.kv.set("index", index);
@@ -308,8 +312,9 @@ export default function plugin(bb: BbPluginApi) {
       if (!(await automaticEnabled())) return { status: "disabled" as const, candidates: [] };
       const skipped = new Set(skip);
       const { projects, index, records } = await reconcile();
+      prune();
       const eligible = projects.flatMap(project => {
-        const target = skipped.has(project.id) ? null : targetFor(project.id, index[project.id], records[project.id]);
+        const target = skipped.has(project.id) || offers.has(project.id) ? null : targetFor(project.id, index[project.id], records[project.id]);
         return target ? [target] : [];
       });
       const start = eligible.length ? scanOffset % eligible.length : 0;
@@ -334,6 +339,8 @@ export default function plugin(bb: BbPluginApi) {
         const records = await readRecords();
         const target = targetFor(projectId, index[projectId], records[projectId]);
         if (!target) return skipped("manual");
+        prune();
+        if (offers.has(projectId)) return skipped("stale");
         if ((index[projectId] ?? null) !== ifRevision || (target.source !== null && target.source !== peer)) return skipped("stale");
         if (target.knownHash === hash) return skipped("unchanged");
         const bytes = decodePng(base64);

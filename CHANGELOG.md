@@ -10,6 +10,7 @@ with the explicit pre-1.0 policy in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ### Changed
 
+- Removing an icon now resets the project to automatic: the next scan can adopt peer artwork again (for example from Homepage). Turn off **Use artwork from installed plugins automatically** in Settings to keep a removed icon empty.
 - Every call to another plugin goes through one guard: the plugin must be installed, enabled and running at a known version, a method BB reports as unknown is treated as an absent peer and not asked again for that version for 30 minutes, calls time out after 5 seconds, and replies are shape-checked field by field, read by own properties only and size-limited. A plugin that changes state is probed again, and any failure degrades silently to an absent peer.
 - `resolveIcon` results for an auto-adopted icon carry an optional `adoptedFrom` plugin id (contract version 1 is otherwise unchanged), and images imported from Homepage are bounded by decoded dimensions (4096 px per side).
 - Projects whose icon was removed before this version have no provenance record and become eligible for automatic adoption; turn off **Use artwork from installed plugins automatically** in Settings to keep them without an icon.

@@ -214,7 +214,7 @@ test("each project takes the first peer in priority order that has usable artwor
   await chat.dispose();
 });
 
-test("manual save or removal permanently stops automatic adoption until re-enabled", async () => {
+test("manual save stops automatic adoption until re-enabled and removal resets to automatic", async () => {
   const host = setup({ peers: { "cursor-sidebar": { reply: cursor([A, url(opaquePng)]) } } });
   const [candidate] = (await host.scan()).candidates;
   await host.adopt(candidate);
@@ -224,15 +224,16 @@ test("manual save or removal permanently stops automatic adoption until re-enabl
   assert.deepEqual((await host.scan()).candidates, []);
   assert.equal((await host.call("resolveIcon", { version: 1, projectId: A })).adoptedFrom, undefined);
   await host.call("remove", { projectId: A });
-  assert.deepEqual((await host.scan()).candidates, [], "removal is a manual choice");
-  assert.deepEqual(await host.adopt(candidate, { ifRevision: null }), { status: "skipped", reason: "manual" });
   assert.equal((await host.row(A)).revision, null);
-  assert.deepEqual(await host.call("enableAutomatic", { projectId: A }), { status: "enabled" });
   const again = (await host.scan()).candidates;
-  assert.equal(again.length, 1);
+  assert.equal(again.length, 1, "removal resets the project to automatic");
   assert.equal((await host.adopt(again[0])).status, "adopted");
-  await host.call("removeWithUndo", { projectId: A });
-  assert.equal((await host.row(A)).automatic, false);
+  const removed = await host.call("removeWithUndo", { projectId: A });
+  assert.deepEqual((await host.scan()).candidates, [], "a pending Undo pauses adoption for that project");
+  assert.equal((await host.adopt(again[0], { ifRevision: null })).reason, "stale");
+  assert.equal((await host.call("restore", { projectId: A, token: removed.undo.token })).status, "restored");
+  await host.call("setAutomaticAdoption", { enabled: false });
+  assert.deepEqual((await host.scan()).candidates, [], "global switch keeps a removed icon empty");
   await host.dispose();
 });
 
