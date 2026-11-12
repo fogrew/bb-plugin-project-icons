@@ -1,10 +1,10 @@
-import test from "node:test";
+import test, { mock } from "node:test";
 import assert from "node:assert/strict";
 import { A, B, hostile, setup, VERSIONS } from "./test-fixtures/peer-host.mjs";
 import { MAX_PEER_RESPONSE_CHARS } from "./lib/adoption.ts";
-import { MAX_HINT_PROJECTS, createHintSource } from "./lib/hints.ts";
+import { HintsUnavailable, MAX_HINT_PROJECTS, createHintSource } from "./lib/hints.ts";
 import { createCapabilities } from "./lib/peer-gate.ts";
-import { createHintsStore, parseHints } from "./lib/hints-store.ts";
+import { createHintsStore, loadHints, parseHints } from "./lib/hints-store.ts";
 import { parseHexColor } from "./lib/hint-color.ts";
 import { THREADSPACE_COLORS } from "./lib/peers.ts";
 import { contrast, foreground, palette } from "./lib/icon-presets.ts";
@@ -37,10 +37,18 @@ test("a theme with every surface switched off, or with a malformed colour, is no
 });
 
 test("Project Themes replies of the wrong shape produce no hints", async () => {
-  for (const reply of [undefined, null, "x", 5, [], {}, themes(null), themes([]), themes("x"), themes({ [A]: null }), themes({ [A]: 5 }),
-    themes({ [A]: [] }), themes({ [A]: "#aabbcc" }), themes({ [A]: {} }), themes({ other: theme("#aabbcc") }), new Error("boom")]) {
+  for (const reply of [themes({ [A]: null }), themes({ [A]: 5 }), themes({ [A]: [] }), themes({ [A]: "#aabbcc" }), themes({ [A]: {} }),
+    themes({ other: theme("#aabbcc") })]) {
     const host = setup({ peers: { "project-themes": { reply } } });
     assert.deepEqual(await host.hints(), { colors: {} }, JSON.stringify(reply));
+    await host.dispose();
+  }
+  for (const reply of [undefined, null, "x", 5, [], {}, themes(null), themes([]), themes("x"), new Error("boom")]) {
+    const host = setup({ peers: { "project-themes": { reply }, threadspace: { reply: space([[A, "red"]]) } } });
+    const response = await host.hintsResponse();
+    assert.equal(response.status, 503, String(JSON.stringify(reply)));
+    assert.deepEqual((await response.json()).colors, {});
+    assert.equal(host.calls.some(item => item.pluginId === "threadspace"), false, "a structurally broken source holds back the next one");
     await host.dispose();
   }
 });
@@ -74,26 +82,88 @@ test("hints respect the global toggle and absent, disabled, old or stopped peers
   assert.deepEqual(await off.hints(), { colors: {} });
   assert.equal(off.calls.length, 0, "no peer is called while automatic adoption is off");
   await off.dispose();
-  for (const state of [{ enabled: false }, { version: "0.0.9" }, { status: "starting" }, { status: "incompatible" }]) {
+  for (const state of [{ enabled: false }, { version: "0.0.9" }, { status: "incompatible" }]) {
     const host = setup({ peers: { "project-themes": { ...peers["project-themes"], ...state }, threadspace: { ...peers.threadspace, ...state } } });
     assert.deepEqual(await host.hints(), { colors: {} }, JSON.stringify(state));
     assert.equal(host.calls.length, 0, JSON.stringify(state));
     await host.dispose();
   }
+  const starting = setup({ peers: { "project-themes": { ...peers["project-themes"], status: "starting" }, threadspace: { ...peers.threadspace, status: "starting" } } });
+  assert.equal((await starting.hintsResponse()).status, 503, "a plugin that is installed but not running is a failure, not an empty answer");
+  assert.equal(starting.calls.length, 0);
+  await starting.dispose();
   const none = setup({});
   assert.deepEqual(await none.hints(), { colors: {} });
   assert.equal(none.calls.length, 0);
   await none.dispose();
 });
 
-test("a missing or failing peer method degrades silently to no hints", async () => {
-  for (const extra of [{ unknownMethod: true }, { reply: new Error("boom") }]) {
-    const host = setup({ peers: { "project-themes": { reply: themes({ [A]: theme("#0000ff") }), ...extra }, threadspace: { reply: space([[B, "red"]]) } } });
-    const response = await host.harness.behavior.fetchHttp("GET", "/hints");
-    assert.equal(response.status, 200);
-    assert.deepEqual(await response.json(), { colors: { [B]: "#d44c47" } }, "the other source still answers");
-    await host.dispose();
-  }
+test("a peer without the method counts as absent and the next source still answers", async () => {
+  const host = setup({ peers: {
+    "project-themes": { reply: themes({ [A]: theme("#0000ff") }), unknownMethod: true },
+    threadspace: { reply: space([[B, "red"]]) },
+  } });
+  const response = await host.hintsResponse();
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { colors: { [B]: "#d44c47" } });
+  await host.dispose();
+});
+
+test("a failing hints read is an error response that is never cached, so the browser keeps its colours", async () => {
+  const host = setup({ peers: { "project-themes": { reply: themes({ [A]: theme("#0000ff") }) } } });
+  host.control.listFails = true;
+  const failed = await host.hintsResponse();
+  assert.equal(failed.status, 503);
+  assert.deepEqual(await failed.json(), { colors: {}, error: true });
+  host.control.listFails = false;
+  const recovered = await host.hintsResponse();
+  assert.equal(recovered.status, 200);
+  assert.deepEqual(await recovered.json(), { colors: { [A]: "#0000ff" } }, "the failure was not cached");
+  host.control.listFails = true;
+  assert.equal((await host.hintsResponse()).status, 200, "a good answer is served from the short cache");
+  await host.dispose();
+  const garbage = setup({ pluginRows: "nope" });
+  assert.equal((await garbage.hintsResponse()).status, 503, "an unreadable plugin list is a failure, not an empty answer");
+  await garbage.dispose();
+});
+
+test("a plugin list that hangs times out into an error response", async () => {
+  const host = setup({ peers: { "project-themes": { reply: themes({ [A]: theme("#0000ff") }) } } });
+  host.control.listHangs = true;
+  mock.timers.enable({ apis: ["setTimeout"] });
+  try {
+    const pending = host.hintsResponse();
+    for (let i = 0; i < 100; i += 1) await new Promise(resolve => setImmediate(resolve));
+    mock.timers.tick(5000);
+    assert.equal((await pending).status, 503);
+  } finally { mock.timers.reset(); }
+  host.control.listHangs = false;
+  assert.deepEqual(await host.hints(), { colors: { [A]: "#0000ff" } });
+  await host.dispose();
+});
+
+test("a failing or stopped Project Themes holds back Threadspace colours until it recovers", async () => {
+  const peers = {
+    "project-themes": { reply: new Error("boom") },
+    threadspace: { reply: space([[A, "red"], [B, "green"]]) },
+  };
+  const host = setup({ peers });
+  const failing = await host.hintsResponse();
+  assert.equal(failing.status, 503);
+  assert.equal(host.calls.some(item => item.pluginId === "threadspace"), false, "Threadspace is not even asked");
+  peers["project-themes"].reply = themes({ [A]: theme("#0000ff") });
+  assert.deepEqual(await host.hints(), { colors: { [A]: "#0000ff", [B]: "#448361" } });
+  await host.dispose();
+  const stopped = setup({ peers: {
+    "project-themes": { reply: themes({ [A]: theme("#0000ff") }), status: "starting" },
+    threadspace: { reply: space([[A, "red"]]) },
+  } });
+  assert.equal((await stopped.hintsResponse()).status, 503);
+  assert.equal(stopped.calls.length, 0);
+  await stopped.dispose();
+  const alone = setup({ peers: { threadspace: { reply: new Error("boom") }, "project-themes": { reply: themes({ [A]: theme("#0000ff") }) } } });
+  assert.deepEqual(await alone.hints(), { colors: { [A]: "#0000ff" } }, "a failing last source holds nothing back");
+  await alone.dispose();
 });
 
 test("prototype-key hostile data and oversize replies never produce hints for foreign keys", async () => {
@@ -109,7 +179,10 @@ test("prototype-key hostile data and oversize replies never produce hints for fo
     "project-themes": { reply: { ...themes({ [A]: theme("#0000ff") }), filler: big } },
     threadspace: { reply: { ...space([[B, "red"]]), filler: big } },
   } });
-  assert.deepEqual(await oversize.hints(), { colors: {} });
+  const rejected = await oversize.hintsResponse();
+  assert.equal(rejected.status, 503, "an oversize reply is a failure that holds back lower sources");
+  assert.deepEqual((await rejected.json()).colors, {});
+  assert.equal(oversize.calls.some(item => item.pluginId === "threadspace"), false);
   await oversize.dispose();
 });
 
@@ -152,7 +225,7 @@ test("hints are cached for the TTL, single-flight and bounded", async () => {
   assert.deepEqual(many.calls.filter(item => item.pluginId === "threadspace").map(item => item.input.projectIds.length), [200, 200, 100]);
 });
 
-test("a failing peer keeps its last colours for a while, then they expire; an absent peer clears them", async () => {
+test("a failing peer keeps its last colours for a while, then the read fails; an absent peer clears them", async () => {
   let clock = 0;
   const { hints, state } = source({ now: () => clock, ttlMs: 0, replies: { "project-themes": themes({ [A]: theme("#0000ff") }) } });
   assert.deepEqual(await hints.read([A]), { [A]: "#0000ff" });
@@ -160,14 +233,45 @@ test("a failing peer keeps its last colours for a while, then they expire; an ab
   clock = 60_000;
   assert.deepEqual(await hints.read([A]), { [A]: "#0000ff" }, "a transient failure keeps the colour");
   clock = 31 * 60_000;
-  assert.deepEqual(await hints.read([A]), {}, "stale colours expire");
+  await assert.rejects(hints.read([A]), HintsUnavailable, "stale colours expire into an error, not an empty answer");
   state.replies["project-themes"] = themes({ [A]: theme("#0000ff") });
   assert.deepEqual(await hints.read([A]), { [A]: "#0000ff" });
   state.plugins[0].enabled = false;
   state.replies["project-themes"] = new Error("boom");
   assert.deepEqual(await hints.read([A]), {});
   state.plugins[0].enabled = true;
-  assert.deepEqual(await hints.read([A]), {}, "nothing is resurrected after the peer was absent");
+  await assert.rejects(hints.read([A]), HintsUnavailable, "nothing is resurrected after the peer was absent");
+});
+
+test("stale colours never cover a project they were not read for, and Threadspace waits for Project Themes", async () => {
+  let clock = 0;
+  const { hints, state, calls } = source({ now: () => clock, ttlMs: 0, replies: { "project-themes": themes({ [A]: theme("#0000ff") }) } });
+  state.plugins.push({ id: "threadspace", version: "0.2.2", enabled: true, status: "running" });
+  state.replies.threadspace = space([[A, "red"], [B, "green"]]);
+  assert.deepEqual(await hints.read([A]), { [A]: "#0000ff" });
+  state.replies["project-themes"] = new Error("boom");
+  assert.deepEqual(await hints.read([A]), { [A]: "#0000ff" }, "the stale source keeps its own colours first");
+  const asked = () => calls.filter(item => item.pluginId === "threadspace").length;
+  const before = asked();
+  await assert.rejects(hints.read([A, B]), HintsUnavailable, "a project the stale read never covered cannot take Threadspace's colour");
+  assert.equal(asked(), before);
+});
+
+test("the hints loader treats a non-OK answer as a failure and the store keeps its colours", async () => {
+  const answers = [new Response(JSON.stringify({ colors: { [A]: "#aabbcc" } })), new Response("{}", { status: 503 }),
+    new Response(JSON.stringify({ colors: {}, error: true }), { status: 503 }), new Response(JSON.stringify({ colors: {} }))];
+  let clock = 0;
+  const store = createHintsStore(signal => loadHints(signal, async () => answers.shift()), () => clock);
+  await store.refresh();
+  assert.equal(store.get(A), "#aabbcc");
+  for (let step = 0; step < 2; step += 1) {
+    clock += 11_000;
+    await store.refresh();
+    assert.equal(store.get(A), "#aabbcc", "a 503 never clears the colours");
+  }
+  clock += 11_000;
+  await store.refresh();
+  assert.equal(store.get(A), null, "only a successful empty answer clears them");
 });
 
 test("the client hint store validates responses, notifies on change only and keeps the last good colours", async () => {

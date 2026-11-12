@@ -51,8 +51,10 @@ export function createHintsStore(load: (signal: AbortSignal) => Promise<unknown>
   };
 }
 
-export const hints = createHintsStore(async signal => {
-  const response = await fetch("/api/v1/plugins/project-icons/http/hints", { credentials: "same-origin", cache: "no-store", signal });
+export async function loadHints(signal: AbortSignal, fetcher: typeof fetch = fetch): Promise<unknown> {
+  const response = await fetcher("/api/v1/plugins/project-icons/http/hints", { credentials: "same-origin", cache: "no-store", signal });
   if (!response.ok) throw new Error("Appearance hints unavailable");
   return response.json();
-});
+}
+
+export const hints = createHintsStore(signal => loadHints(signal));

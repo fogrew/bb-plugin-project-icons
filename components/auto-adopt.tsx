@@ -4,7 +4,7 @@ import type { rpcContract } from "../server";
 import { createAdopter } from "../lib/auto-adopt";
 import { fetchPeerImage } from "../lib/peer-image";
 import { decodeImage, defaultCrop, drawIcon, encodeIcon } from "../lib/image-processing";
-import { drawEmoji } from "../lib/emoji-rendering";
+import { drawEmoji, hasVisibleInk } from "../lib/emoji-rendering";
 
 export const SCAN_EVENT = "bb-project-icons-scan";
 const START_DELAY_MS = 3000;
@@ -19,9 +19,10 @@ async function normalise(file: File): Promise<string> {
   } finally { bitmap.close(); }
 }
 
-async function renderEmoji(emoji: string): Promise<string> {
+export async function renderEmoji(emoji: string): Promise<string> {
   const canvas = document.createElement("canvas");
   drawEmoji(canvas, emoji);
+  if (!hasVisibleInk(canvas)) throw new Error("This emoji cannot be drawn on this device");
   return encodeIcon(canvas);
 }
 

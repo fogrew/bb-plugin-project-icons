@@ -131,6 +131,7 @@ export async function findCandidates(deps: ScanDeps, requested: Target[], parent
   const candidates: Candidate[] = [];
   let pending = targets;
   for (const peer of PEERS) {
+    deps.capabilities.observe(peer.id, plugins.find(plugin => plugin.id === peer.id));
     const wanted = pending.filter(target => target.source === null || target.source === peer.id);
     if (!wanted.length) continue;
     const availability = peerAvailability(plugins, peer.id, peer.minVersion);

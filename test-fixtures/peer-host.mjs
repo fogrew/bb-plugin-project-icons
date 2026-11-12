@@ -28,6 +28,7 @@ export function setup({
 } = {}) {
   const calls = [];
   const environmentCalls = [];
+  const control = { listFails: false, listHangs: false };
   const rows = () => pluginRows !== undefined ? pluginRows : Object.entries(peers).map(([id, peer]) => ({
     id, version: peer.version ?? VERSIONS[id], enabled: peer.enabled ?? true, status: peer.status ?? "running",
   }));
@@ -47,7 +48,11 @@ export function setup({
         },
       },
       plugins: {
-        list: async () => ({ plugins: rows() }),
+        list: async () => {
+          if (control.listFails) throw new Error("plugin list unavailable");
+          if (control.listHangs) return new Promise(() => {});
+          return { plugins: rows() };
+        },
         callRpc: async args => {
           calls.push({ pluginId: args.pluginId, method: args.method, input: args.input });
           const peer = peers[args.pluginId];
@@ -69,6 +74,7 @@ export function setup({
     ifRevision: candidate.revision, ...extra,
   });
   const row = async id => (await call("list", null)).projects.find(project => project.id === id);
-  const hints = async () => (await harness.behavior.fetchHttp("GET", "/hints")).json();
-  return { bb, harness, calls, environmentCalls, call, scan, adopt, row, hints, dispose: () => harness.lifecycle.dispose() };
+  const hintsResponse = () => harness.behavior.fetchHttp("GET", "/hints");
+  const hints = async () => (await hintsResponse()).json();
+  return { bb, harness, calls, environmentCalls, control, call, scan, adopt, row, hints, hintsResponse, dispose: () => harness.lifecycle.dispose() };
 }

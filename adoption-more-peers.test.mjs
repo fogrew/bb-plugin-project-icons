@@ -206,3 +206,31 @@ test("the BB Sidebar image route carries the environment, is browser-session onl
   assert.equal(peerImageRoute("homepage", A), `/api/v1/plugins/homepage/http/project-icon?projectId=${A}`);
   assert.equal(peerImageRoute("bb-sidebar", "a b&c"), "/api/v1/plugins/bb-sidebar/http/project-icon?projectId=a%20b%26c");
 });
+
+test("a throwing or malformed Threadspace yields nothing and is used again once it recovers", async () => {
+  const peer = { reply: new Error("boom") };
+  const host = setup({ peers: { threadspace: peer } });
+  assert.deepEqual(await host.scan(), { status: "ok", candidates: [] });
+  peer.reply = "not an object";
+  assert.deepEqual(await host.scan(), { status: "ok", candidates: [] });
+  peer.reply = appearance([[A, "😀"]]);
+  assert.deepEqual(bySource((await host.scan()).candidates), [[A, "threadspace", "emoji"]]);
+  await host.dispose();
+});
+
+test("a plugin that restarts is probed again even after its method was reported unknown", async () => {
+  const peer = { reply: appearance([[A, "😀"]]), unknownMethod: true };
+  const host = setup({ peers: { threadspace: peer } });
+  assert.deepEqual((await host.scan()).candidates, []);
+  const asked = () => host.calls.filter(item => item.pluginId === "threadspace").length;
+  assert.equal(asked(), 1);
+  await host.scan();
+  assert.equal(asked(), 1, "the unknown method is remembered while the plugin is unchanged");
+  peer.status = "starting";
+  await host.scan();
+  assert.equal(asked(), 1, "a plugin that is not running is not called");
+  peer.status = "running";
+  peer.unknownMethod = false;
+  assert.deepEqual(bySource((await host.scan()).candidates), [[A, "threadspace", "emoji"]], "running again, the method is probed afresh");
+  await host.dispose();
+});

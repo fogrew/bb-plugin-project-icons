@@ -31,8 +31,9 @@ await build({
   stdin: { resolveDir: process.cwd(), loader: "tsx", contents: `
     import React from "react";
     import { createRoot } from "react-dom/client";
-    import { AutoAdopt } from "./components/auto-adopt";
+    import { AutoAdopt, renderEmoji } from "./components/auto-adopt";
     await import("./app");
+    window.renderEmoji = renderEmoji;
     window.calls = [];
     window.automaticAdoption = true;
     window.failEnable = false;
@@ -219,6 +220,20 @@ try {
   let inked = 0;
   for (let offset = 3; offset < glyph.data.length; offset += 4) if (glyph.data[offset] > 0) inked += 1;
   assert.ok(inked > 200 && glyph.data[3] === 0, "the emoji is drawn on a transparent 64 x 64 canvas");
+  const outcomes = await page.evaluate(async () => {
+    const attempt = async value => { try { return (await window.renderEmoji(value)).length > 100 ? "rendered" : "tiny"; } catch (error) { return error.message; } };
+    return { emoji: await attempt("😀"), zeroWidth: await attempt("​"), space: await attempt(" "), empty: await attempt("") };
+  });
+  assert.equal(outcomes.emoji, "rendered");
+  for (const blank of [outcomes.zeroWidth, outcomes.space, outcomes.empty]) assert.match(blank, /cannot be drawn/, "a blank render is refused");
+  await page.evaluate(() => {
+    window.scans = [{ status: "ok", candidates: [{ projectId: "proj_aaaaaaaaaa", peer: "threadspace", revision: null, transport: "emoji", hash: "f".repeat(64), knownHash: null, emoji: "​" }] }];
+  });
+  const scansBefore = (await calls("adoptionScan")).length;
+  await page.evaluate(() => window.dispatchEvent(new Event("bb-project-icons-scan")));
+  await page.waitForFunction(before => window.calls.filter(c => c.method === "adoptionScan").length >= before + 2, scansBefore);
+  assert.equal((await calls("adoptPeer")).length, 7, "a blank emoji render is never adopted as an empty icon");
+  checks.push("a blank or undrawable emoji is refused and never adopted as an empty icon");
   checks.push("Threadspace emoji are rendered to a transparent 64 x 64 PNG and BB Sidebar images are fetched from its fixed route with the resolved environment");
   assert.deepEqual(errors, []);
 

@@ -397,7 +397,7 @@ export default function plugin(bb: BbPluginApi) {
       return context.json({ colors }, 200, headers);
     } catch (error) {
       bb.log.warn(`Appearance hints unavailable (${error instanceof TimedOut ? "timeout" : "error"})`);
-      return context.json({ colors: {} }, 200, headers);
+      return context.json({ colors: {}, error: true }, 503, headers);
     }
   });
   bb.http.route("GET", "/icon", async (context) => {
