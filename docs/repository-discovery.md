@@ -3,13 +3,18 @@
 The image editor has a **Find icons in repository** button. Nothing is searched until it is pressed.
 
 - Search uses the supported SDK `projects.files` and `projects.fileContent` calls, which route to the project's own host. No network access is added by the plugin.
-- Three queries (`favicon`, `icon`, `logo`) run with a combined 8 s timeout. Results are filtered to PNG, JPEG and WebP names containing one of those words, skipping dependency/build directories, paths deeper than 8 segments, absolute or `..` paths, backslashes and control characters. At most 12 ranked candidates are shown.
-- SVG and other formats (ICO, GIF, …) are counted and reported as skipped; SVG is never rendered.
+- Six queries (`favicon`, `icon`, `logo`, `apple-touch`, `android-chrome`, `ic_launcher`) run in parallel with a combined 8 s timeout. Results are filtered to PNG, JPEG and WebP files, skipping dependency/build/tool directories (`node_modules`, `dist`, `build`, `bin`, `obj`, `.claude`, …), paths deeper than 8 segments, absolute or `..` paths, backslashes and control characters. At most 12 ranked candidates are shown.
+- A file qualifies when its name contains `favicon`, `icon`, `logo`, `apple-touch`, `android-chrome` or `ic_launcher` (covers `app-icon`, `icon-512.png`, `Square310x310Logo.png`, `AppIcon` sets), or when it is a size-only name (`128x128.png`, `128x128@2x.png`, `512.png`) inside an icon directory (`icons`, `logos`, `favicons`, `app-icon(s)`, Android `mipmap-*`, `*.appiconset`, `*.iconset`; this covers `src-tauri/icons/`). Other images in such directories (for example `icons/arrow.png`) are not suggested.
+- `build/` is ignored as build output with one exception: `build/icon.*` and `build/icons/` (the electron-builder convention).
+- Ranking: `favicon*` first, then `logo*`/`app-icon`/`apple-touch`/`android-chrome`/`ic_launcher`, then other `logo`, `icon*` and size-only names. Within a name class, larger square sizes rank above smaller ones (`512` before `192` before `16`), names without a size are treated like ~128 px, and non-square names are demoted. Sizes are read from the file name only; no extra file contents are read.
+- SVG and other formats (ICO, GIF, …) with a matching name are counted and reported as skipped; SVG is never rendered.
 - Reading a candidate re-validates the path, rejects files over 2 MB, requires base64 content whose magic bytes match a supported format and the file extension, then hands the bytes to the existing editor as a draft. The existing icon changes only after the user presses Save.
 - A missing folder, an offline host or a timeout is reported as unavailable; zero matches show an explicit empty state. Switching projects or closing the editor discards in-flight results.
 
+- The button is available whether or not the project already has an icon; the existing icon changes only on Save (`repository-icons.browser.mjs` covers this).
+
 ## Verification boundary
 
-Covered by unit tests (`discovery.test.mjs`) and a real-Chrome fixture (`repository-icons.browser.mjs`) with SDK and RPC mocked. Not verified live in BB: real multi-logo repositories, remote hosts, symlink escapes (containment is the host API's responsibility; the plugin cannot observe symlinks) and the host's own size limits (`fileContent` reports `sizeBytes` after the read, so an oversized file is read by the host before being rejected).
+Covered by unit tests (`discovery.test.mjs`) and a real-Chrome fixture (`repository-icons.browser.mjs`) with SDK and RPC mocked. Not verified live in BB: how the host's fuzzy `projects.files` query ranks and truncates results in large repositories (it is queried with `limit` 300 per query), real multi-logo repositories, remote hosts, symlink escapes (containment is the host API's responsibility; the plugin cannot observe symlinks) and the host's own size limits (`fileContent` reports `sizeBytes` after the read, so an oversized file is read by the host before being rejected).
 
 An unknown project makes `discover` and `readCandidate` fail with "Project not found". Host error details are logged, not returned to the UI.
