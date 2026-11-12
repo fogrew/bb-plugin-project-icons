@@ -140,14 +140,21 @@ function ContextualEditor() {
       if (event.target !== event.currentTarget) return;
       if (!opening.current && origin.current?.isConnected) origin.current.focus();
     }}
+    onClick={event => {
+      if (event.target !== event.currentTarget) return;
+      const box = event.currentTarget.getBoundingClientRect();
+      if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) closeEditor();
+    }}
     onKeyDown={event => {
       event.stopPropagation();
       if (event.key === "Escape" && (event.target as HTMLElement).closest("dialog") === event.currentTarget) {
         event.preventDefault(); closeEditor();
       }
     }}>
-    <h2 id={title}>Edit project icon</h2>
-    <button type="button" autoFocus onClick={closeEditor}>Close editor</button>
+    <div className="bb-project-icons-contextual-header">
+      <h2 id={title}>Edit project icon</h2>
+      <button type="button" autoFocus onClick={closeEditor}>Close editor</button>
+    </div>
     {request && <Settings key={request.key} projectId={request.projectId} />}
   </dialog>;
 }

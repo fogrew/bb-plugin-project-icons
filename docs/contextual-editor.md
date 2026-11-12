@@ -2,9 +2,13 @@
 
 The editor uses SDK 0.6.104 declarations, upgraded from 0.6.49 to match the running host. The homepageSection projectId prop and experimental_threadAction target projectId are authoritative. Menu and header registrations open the same experimental_appOverlay-owned native modal dialog. No thread context lookup or Settings navigation is involved.
 
-The existing Settings editor and contextual editor share the same picker, preview, removal/Undo controls and state implementation. Contextual list results are restricted to the requested ID, including after realtime refresh; a missing project cannot fall back to another project. Closing unmounts the draft and cancels its state lifetime. Already submitted RPCs may finish. Escape closes the modal; nested PNG preview Escape closes only that preview. Native dialog behavior owns modality and Tab focus containment. Connected opening elements receive focus on close; menu items removed by the host cannot receive focus, so host menu focus restoration still requires live verification.
+The existing Settings editor and contextual editor share the same picker, preview, removal/Undo controls and state implementation. Contextual list results are restricted to the requested ID, including after realtime refresh; a missing project cannot fall back to another project. Closing unmounts the draft and cancels its state lifetime. Already submitted RPCs may finish. Escape, the visible Close editor button and a click on the backdrop close the modal; nested PNG preview Escape closes only that preview. Native dialog behavior owns modality and Tab focus containment. Connected opening elements receive focus on close; menu items removed by the host cannot receive focus, so host menu focus restoration still requires live verification.
 
 Header actions fold into the thread menu at compact widths per SDK declarations. The plugin does not replace sidebar or folder surfaces.
+
+## Layout
+
+The dialog sets its own position (`inset: 0; margin: auto`), width and `max-height` from the viewport and scrolls internally, so a host reset that zeroes the native dialog margin cannot pin it to a corner. Its header, close button and content use the host theme tokens (`--background`, `--foreground`, `--border`, `--ring`, `--accent`) with system-color fallbacks. The browser fixture loads a Tailwind-preflight-like reset and asserts centering, viewport containment at 320/768/1440 px, control styling and the three dismissal paths.
 
 ## Verification boundary
 

@@ -83,8 +83,14 @@
 .bb-project-icons-viewer-toolbar button { min-width: 44px; min-height: 44px; }
 .bb-project-icons-viewer .bb-project-icons-viewer-image { display: block; width: 100%; height: auto; aspect-ratio: 1; object-fit: contain; background: conic-gradient(#ccc 25%, #fff 0 50%, #ccc 0 75%, #fff 0) 0 0 / 16px 16px; }
 
-.bb-project-icons-contextual { width: min(760px, 94vw); max-height: 90vh; overflow: auto; padding: 24px; color: inherit; background: var(--background, #202020); border: 1px solid #777; border-radius: 12px; }
-.bb-project-icons-contextual::backdrop { background: #0008; }
+.bb-project-icons-contextual { position: fixed; inset: 0; margin: auto; box-sizing: border-box; width: min(760px, calc(100vw - 2rem)); height: fit-content; max-height: calc(100vh - 2rem); max-height: calc(100dvh - 2rem); overflow: auto; padding: 24px; color: var(--foreground, CanvasText); background: var(--background, Canvas); border: 1px solid var(--border, GrayText); border-radius: 12px; font-size: 14px; }
+.bb-project-icons-contextual *, .bb-project-icons-contextual *::before, .bb-project-icons-contextual *::after { box-sizing: border-box; }
+.bb-project-icons-contextual-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
+.bb-project-icons-contextual-header h2 { margin: 0; font-size: 18px; font-weight: 600; overflow-wrap: anywhere; }
+.bb-project-icons-contextual-header button { min-height: 36px; padding: 6px 12px; color: inherit; font: inherit; cursor: pointer; background: var(--background, Canvas); border: 1px solid var(--border, GrayText); border-radius: 6px; }
+.bb-project-icons-contextual-header button:hover { background: var(--accent, var(--muted)); color: var(--accent-foreground, inherit); }
+.bb-project-icons-contextual-header button:focus-visible { outline: 2px solid var(--ring, var(--foreground, CanvasText)); outline-offset: 2px; }
+.bb-project-icons-contextual::backdrop { background: rgb(0 0 0 / 55%); }
 .bb-project-icons-repository { display: grid; gap: 6px; margin-block: 8px; }
 .bb-project-icons-candidates { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
 .bb-project-icons-candidates button { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
