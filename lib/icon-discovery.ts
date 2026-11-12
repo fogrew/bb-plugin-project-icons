@@ -41,8 +41,9 @@ export function isDiscoverablePath(path: string): boolean {
 }
 
 function inIgnoredDirectory(path: string): boolean {
-  if (BUILD_ICON.test(path)) return false;
-  return path.split("/").slice(0, -1).some(segment => IGNORED_DIRECTORIES.has(segment.toLowerCase()));
+  const directories = path.split("/").slice(0, -1);
+  if (BUILD_ICON.test(path)) directories.shift();
+  return directories.some(segment => IGNORED_DIRECTORIES.has(segment.toLowerCase()));
 }
 
 function matchesIconName(path: string): boolean {
@@ -52,15 +53,21 @@ function matchesIconName(path: string): boolean {
   return path.split("/").slice(0, -1).some(segment => ICON_DIRECTORY.test(segment));
 }
 
-function sizeTier(name: string): number {
+const DENSITY_TIERS: Record<string, number> = { xxxhdpi: 0, xxhdpi: 1, xhdpi: 2, hdpi: 3, mdpi: 4, ldpi: 5 };
+
+function sizeTier(path: string, name: string): number {
   const pair = /(\d{2,4})x(\d{2,4})/.exec(name);
-  const single = pair ? null : /(?:^|[-_])(\d{2,4})(?=[.@_-]|$)/.exec(name);
-  const width = Number(pair?.[1] ?? single?.[1]);
-  if (!Number.isFinite(width)) return 2;
-  const height = Number(pair?.[2] ?? width);
-  const size = Math.min(width, height);
-  const base = Math.min(5, Math.max(0, 9 - Math.floor(Math.log2(size))));
-  return width === height ? base : Math.max(base, 3);
+  const single = pair ? null : [...name.matchAll(/(?:^|[-_])(\d{2,4})(?=[.@_-]|$)/g)]
+    .find(match => !/^(19[9]\d|20\d\d)$/.test(match[1]));
+  const multiplier = Number(/@(\d)x/.exec(name)?.[1] ?? 1);
+  const width = Number(pair?.[1] ?? single?.[1]) * multiplier;
+  if (Number.isFinite(width)) {
+    const height = pair ? Number(pair[2]) * multiplier : width;
+    const base = Math.min(5, Math.max(0, 9 - Math.log2(Math.min(width, height))));
+    return width === height ? base : Math.max(base, 3);
+  }
+  const density = /(?:^|\/)(?:mipmap|drawable)-(xxxhdpi|xxhdpi|xhdpi|hdpi|mdpi|ldpi)(?:-|\/)/.exec(path.toLowerCase());
+  return density ? DENSITY_TIERS[density[1]] : 2;
 }
 
 function rank(path: string): number {
@@ -69,8 +76,9 @@ function rank(path: string): number {
   const nameScore = name.startsWith("favicon") ? 0
     : name.startsWith("logo") || /^(app-?icon|apple-touch|android-chrome|ic[_-]launcher)/.test(name) ? 1
     : name.includes("logo") ? 2 : name.startsWith("icon") ? 3 : 4;
+  const variant = /^ic[_-]launcher.*(round|foreground|background|monochrome)/.test(name) ? 1 : 0;
   const location = /(^|\/)(public|static|assets|resources|images|img|icons?|src-tauri)(\/|$)/i.test(path) ? 0 : 1;
-  return nameScore * 100 + sizeTier(name) * 10 + location * 20 + depth;
+  return nameScore * 100 + sizeTier(path, name) * 10 + variant * 25 + location * 20 + depth;
 }
 
 export function selectCandidates(paths: readonly string[]): { candidates: Candidate[]; rejected: Rejected; truncated: boolean } {

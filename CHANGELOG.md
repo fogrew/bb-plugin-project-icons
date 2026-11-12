@@ -10,7 +10,7 @@ with the explicit pre-1.0 policy in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ### Changed
 
-- Repository icon discovery recognizes `app-icon`, `apple-touch-icon`, `android-chrome-*`, `ic_launcher`, size-only names in icon directories (`src-tauri/icons`, `mipmap-*`, `*.appiconset`) and `build/icon.png`, and ranks larger square sizes first. Safety limits are unchanged; `.claude`, `bin` and `obj` are now skipped.
+- Repository icon discovery recognizes `app-icon`, `apple-touch-icon`, `android-chrome-*`, `ic_launcher`, size-only names in icon directories (`src-tauri/icons`, `mipmap-*`, `*.appiconset`) and `build/icon.png`, ranks larger square sizes and higher Android densities first, and runs three more host queries (`apple-touch`, `android-chrome`, `ic_launcher`). Safety limits are unchanged; `.claude`, `bin` and `obj` are now skipped.
 
 ### Added
 
