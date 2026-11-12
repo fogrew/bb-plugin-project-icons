@@ -1,3 +1,6 @@
+import { ICO_MIME_TYPES, looksLikeIco } from "./ico.ts";
+import { resolveIcoFile } from "./icon-discovery.ts";
+
 export type Crop = { mode: "fit" | "fill"; zoom: number; x: number; y: number };
 export const defaultCrop: Crop = { mode: "fit", zoom: 1, x: 0, y: 0 };
 
@@ -39,9 +42,16 @@ export function drawIcon(canvas: HTMLCanvasElement, bitmap: ImageBitmap, crop: C
 }
 
 export async function decodeImage(file: File) {
-  if (!["image/png", "image/jpeg", "image/webp"].includes(file.type) || file.size > 2_000_000)
-    throw new Error("Choose a PNG, JPEG, or WebP image under 2 MB.");
-  return createImageBitmap(file);
+  const named = /\.ico$/i.test(file.name ?? "");
+  const icoType = (ICO_MIME_TYPES as readonly string[]).includes(file.type) || (named && file.type === "");
+  if (!(icoType || ["image/png", "image/jpeg", "image/webp"].includes(file.type)) || file.size > 2_000_000)
+    throw new Error("Choose a PNG, JPEG, WebP, or ICO image under 2 MB.");
+  if (!named) {
+    if (icoType || looksLikeIco(new Uint8Array(await file.slice(0, 4).arrayBuffer()))) throw new Error("ICO images must keep their .ico file name.");
+    return createImageBitmap(file);
+  }
+  const image = resolveIcoFile(new Uint8Array(await file.arrayBuffer()));
+  return createImageBitmap(new Blob([image.bytes as BlobPart], { type: image.mimeType }));
 }
 
 export async function encodeIcon(canvas: HTMLCanvasElement): Promise<string> {
