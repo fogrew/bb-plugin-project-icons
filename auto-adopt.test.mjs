@@ -160,3 +160,55 @@ test("unchanged Homepage images are not fetched again within the recheck window"
   assert.equal((await run(next)).adopted, 1, "a different hash is adopted");
   assert.equal(changed.log.adopts.length, 1);
 });
+
+const emoji = (projectId, extra = {}) => ({
+  projectId, peer: "threadspace", revision: null, transport: "emoji", hash: "c".repeat(64), knownHash: null, emoji: "😀", ...extra,
+});
+
+test("emoji candidates are rendered in the browser and adopted with the server hash", async () => {
+  const { client, log } = fake([ok(emoji("proj_aaaaaaaaaa", { revision: 4 }))]);
+  const rendered = [];
+  client.renderEmoji = async value => { rendered.push(value); return "EMOJI64"; };
+  assert.deepEqual(await run(createAdopter(client)), { adopted: 1, skipped: 0, failed: 0 });
+  assert.deepEqual(rendered, ["😀"]);
+  assert.deepEqual(log.adopts, [{ projectId: "proj_aaaaaaaaaa", peer: "threadspace", hash: "c".repeat(64), base64: "EMOJI64", ifRevision: 4 }]);
+  assert.equal(log.fetches.length, 0);
+  assert.equal(log.normalised.length, 0);
+});
+
+test("emoji candidates that are unchanged, empty or fail to render never adopt and back off", async () => {
+  let clock = 0;
+  const same = fake([ok(emoji("proj_aaaaaaaaaa", { knownHash: "c".repeat(64) }))]);
+  same.client.renderEmoji = async () => { throw new Error("must not render"); };
+  assert.deepEqual(await run(createAdopter(same.client)), { adopted: 0, skipped: 1, failed: 0 });
+  const empty = fake([ok(emoji("proj_aaaaaaaaaa", { emoji: undefined }), emoji("proj_bbbbbbbbbb", { hash: null }))]);
+  empty.client.renderEmoji = async () => "X";
+  assert.deepEqual(await run(createAdopter(empty.client)), { adopted: 0, skipped: 0, failed: 2 });
+  assert.equal(empty.log.adopts.length, 0);
+  let renders = 0;
+  const { client, log } = persistent(() => [emoji("proj_cccccccccc")]);
+  client.renderEmoji = async () => { renders += 1; throw new Error("canvas unavailable"); };
+  const adopter = createAdopter(client, { now: () => clock });
+  assert.deepEqual(await run(adopter), { adopted: 0, skipped: 0, failed: 1 });
+  clock += 40000;
+  assert.deepEqual(await run(adopter), { adopted: 0, skipped: 1, failed: 0 });
+  assert.equal(renders, 1, "a failing render is not retried within the backoff");
+  clock += 31 * MINUTE;
+  assert.equal((await run(adopter)).failed, 1);
+  assert.equal(log.adopts.length, 0);
+});
+
+test("http candidates pass their peer and environment to the image fetch", async () => {
+  const { client, log } = fake([ok(http("proj_aaaaaaaaaa", { peer: "bb-sidebar", environmentId: "env_main" }), http("proj_bbbbbbbbbb", { peer: "bb-sidebar" }))]);
+  const sources = [];
+  client.fetchImage = async (projectId, signal, source) => {
+    sources.push([projectId, source]);
+    return new File([transparentPng], "icon.png", { type: "image/png" });
+  };
+  assert.deepEqual(await run(createAdopter(client)), { adopted: 2, skipped: 0, failed: 0 });
+  assert.deepEqual(sources, [
+    ["proj_aaaaaaaaaa", { peer: "bb-sidebar", environmentId: "env_main" }],
+    ["proj_bbbbbbbbbb", { peer: "bb-sidebar" }],
+  ]);
+  assert.deepEqual(log.adopts.map(item => item.peer), ["bb-sidebar", "bb-sidebar"]);
+});

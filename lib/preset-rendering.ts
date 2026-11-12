@@ -1,15 +1,17 @@
 import { explicitInitials, foreground, glyphs, palette, type ColorId } from "./icon-presets";
 
-export function drawPreset(canvas: HTMLCanvasElement, source: { glyph: string } | { initials: string }, colorId: ColorId) {
-  const color = palette.find(p => p.id === colorId);
-  if (!color) throw new Error("Unknown palette color.");
+export function drawPreset(
+  canvas: HTMLCanvasElement, source: { glyph: string } | { initials: string }, colorId: ColorId | `#${string}`,
+) {
+  const background = /^#[0-9a-f]{6}$/i.test(colorId) ? colorId : palette.find(p => p.id === colorId)?.background;
+  if (!background) throw new Error("Unknown palette color.");
   canvas.width = canvas.height = 64;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Canvas is unavailable.");
   ctx.clearRect(0, 0, 64, 64);
-  ctx.fillStyle = color.background;
+  ctx.fillStyle = background;
   ctx.beginPath(); ctx.roundRect(0, 0, 64, 64, 12); ctx.fill();
-  const ink = foreground(color.background);
+  const ink = foreground(background);
   if ("glyph" in source) {
     const glyph = glyphs.find(g => g.id === source.glyph);
     if (!glyph) throw new Error("Unknown built-in glyph.");

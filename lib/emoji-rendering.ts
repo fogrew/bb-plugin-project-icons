@@ -1,4 +1,15 @@
 export const emojiFont = '"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
+const MIN_INK_PIXELS = 24;
+const INK_ALPHA = 32;
+
+export function hasVisibleInk(canvas: HTMLCanvasElement): boolean {
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return false;
+  const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  let ink = 0;
+  for (let offset = 3; offset < data.length; offset += 4) if (data[offset] >= INK_ALPHA) ink += 1;
+  return ink >= MIN_INK_PIXELS;
+}
 
 export function drawEmoji(canvas: HTMLCanvasElement, value: string) {
   canvas.width = canvas.height = 64;

@@ -14,6 +14,9 @@ import { MAX_TARGETS, findCandidates, parseAdoption, targetFor, type AdoptionMap
 import { HASH_PATTERN } from "./lib/content-hash";
 import { PEER_IDS } from "./lib/peers";
 import { TimedOut, withTimeout } from "./lib/deadline";
+import { createCapabilities } from "./lib/peer-gate";
+import { ENVIRONMENT_ID, pickEnvironment } from "./lib/environment-pick";
+import { createHintSource } from "./lib/hints";
 
 const idSchema = z.string().regex(/^proj_[a-z0-9]{10,32}$/);
 const imageSchema = z.string().regex(/^[A-Za-z0-9+/]+={0,2}$/).max(90000);
@@ -21,13 +24,15 @@ const UNDO_MS = 15000;
 const DISCOVERY_TIMEOUT_MS = 8000;
 const MAX_UNDO_OFFERS = 16;
 const SCAN_TIMEOUT_MS = 30000;
+const HINT_TIMEOUT_MS = 15000;
 const undoSchema = z.object({ token: z.string().uuid(), expiresAt: z.number() });
 const hashSchema = z.string().regex(HASH_PATTERN);
 const peerSchema = z.enum(PEER_IDS);
 const candidateSchema = z.object({
-  projectId: idSchema, peer: peerSchema, revision: z.number().nullable(), transport: z.enum(["inline", "http"]),
+  projectId: idSchema, peer: peerSchema, revision: z.number().nullable(), transport: z.enum(["inline", "http", "emoji"]),
   hash: hashSchema.nullable(), knownHash: hashSchema.nullable(),
   mimeType: z.enum(["image/png", "image/jpeg", "image/webp"]).optional(), base64: z.string().max(350000).optional(),
+  environmentId: z.string().regex(ENVIRONMENT_ID).optional(), emoji: z.string().min(1).max(32).optional(),
 });
 export const rpcContract = defineRpcContract({
   list: {
@@ -171,8 +176,17 @@ export default function plugin(bb: BbPluginApi) {
     listPlugins: async signal => (await bb.sdk.plugins.list({ signal })).plugins,
     callPeer: (pluginId, method, input, signal) =>
       bb.sdk.plugins.callRpc({ pluginId, method, input, outputSchema: z.unknown(), signal }),
+    resolveEnvironment: async (projectId, signal) => {
+      const [project, environments] = await Promise.all([
+        bb.sdk.projects.get({ projectId, signal }),
+        (async () => bb.sdk.environments.list({ projectId, status: "ready", limit: 100, signal }))().catch(() => null),
+      ]);
+      return pickEnvironment(project, environments, projectId);
+    },
+    capabilities: createCapabilities(),
     warn: message => bb.log.warn(message),
   };
+  const hintSource = createHintSource(peerDeps);
   let scanning: Promise<unknown> = Promise.resolve();
   let scanOffset = 0;
   const queueScan = <T>(work: () => Promise<T>): Promise<T> => {
@@ -378,6 +392,18 @@ export default function plugin(bb: BbPluginApi) {
   bb.http.route("GET", "/icons", async (context) => {
     const { index } = await reconcile();
     return context.json(index, 200, { "Cache-Control": "no-store" });
+  });
+  bb.http.route("GET", "/hints", async (context) => {
+    const headers = { "Cache-Control": "no-store" };
+    if (!(await automaticEnabled())) return context.json({ colors: {} }, 200, headers);
+    try {
+      const ids = (await bb.sdk.projects.list()).map(project => project.id).filter(id => idSchema.safeParse(id).success);
+      const colors = await withTimeout(signal => hintSource.read(ids, signal), HINT_TIMEOUT_MS);
+      return context.json({ colors }, 200, headers);
+    } catch (error) {
+      bb.log.warn(`Appearance hints unavailable (${error instanceof TimedOut ? "timeout" : "error"})`);
+      return context.json({ colors: {}, error: true }, 503, headers);
+    }
   });
   bb.http.route("GET", "/icon", async (context) => {
     const projectId = context.req.query("projectId") ?? "";
