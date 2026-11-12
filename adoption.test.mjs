@@ -228,9 +228,10 @@ test("manual save stops automatic adoption until re-enabled and removal resets t
   const again = (await host.scan()).candidates;
   assert.equal(again.length, 1, "removal resets the project to automatic");
   assert.equal((await host.adopt(again[0])).status, "adopted");
-  await host.call("removeWithUndo", { projectId: A });
-  const reset = (await host.scan()).candidates;
-  assert.equal(reset.length, 1, "removeWithUndo also resets to automatic");
+  const removed = await host.call("removeWithUndo", { projectId: A });
+  assert.deepEqual((await host.scan()).candidates, [], "a pending Undo pauses adoption for that project");
+  assert.equal((await host.adopt(again[0], { ifRevision: null })).reason, "stale");
+  assert.equal((await host.call("restore", { projectId: A, token: removed.undo.token })).status, "restored");
   await host.call("setAutomaticAdoption", { enabled: false });
   assert.deepEqual((await host.scan()).candidates, [], "global switch keeps a removed icon empty");
   await host.dispose();
