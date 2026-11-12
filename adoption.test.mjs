@@ -4,7 +4,7 @@ import { createFakePluginHost } from "@get-bb/plugin-sdk/testing";
 import plugin from "./dist/server.js";
 import { opaquePng, transparentPng } from "./test-fixtures/png.mjs";
 import { imageDimensions, withinPeerBounds } from "./lib/image-bounds.ts";
-import { targetFor } from "./lib/adoption.ts";
+import { MAX_PEER_RESPONSE_CHARS, targetFor } from "./lib/adoption.ts";
 
 const A = "proj_aaaaaaaaaa";
 const B = "proj_bbbbbbbbbb";
@@ -78,7 +78,7 @@ test("unavailable peers never throw and are never called", async () => {
   }
 });
 
-test("malformed or failing peer replies produce no candidates and do not block other peers", async () => {
+test("malformed or failing peer replies produce no candidates", async () => {
   const bad = [null, "nope", 7, [], { icons: "x" }, { icons: [null, 3, { projectId: 5, icon: "x" }, { projectId: A }] },
     new Error("boom")];
   for (const reply of bad) {
@@ -90,10 +90,55 @@ test("malformed or failing peer replies produce no candidates and do not block o
     assert.deepEqual(await host.scan(), { status: "ok", candidates: [] }, JSON.stringify(reply));
     await host.dispose();
   }
-  const host = setup({ peers: { "cursor-sidebar": { reply: new Error("boom") }, "nested-sidebar": { reply: { icons: [{ projectId: A, icon: { src: url(opaquePng) } }] } } } });
-  const { candidates } = await host.scan();
-  assert.deepEqual(candidates.map(item => [item.projectId, item.peer]), [[A, "nested-sidebar"]]);
+});
+
+test("a failing higher-priority peer blocks lower-priority adoption for the projects it would serve", async () => {
+  const nested = { reply: { icons: [{ projectId: A, icon: { src: url(opaquePng) } }] } };
+  for (const cursorPeer of [{ reply: new Error("boom") }, { reply: "nope" }, { reply: cursor([A, url(opaquePng)]), status: "starting" }]) {
+    const host = setup({ peers: { "cursor-sidebar": cursorPeer, "nested-sidebar": nested } });
+    assert.deepEqual((await host.scan()).candidates, [], JSON.stringify(cursorPeer.reply));
+    assert.equal(host.calls.some(item => item.pluginId === "nested-sidebar"), false, "the lower-priority peer is not even asked");
+    await host.dispose();
+  }
+  const disabled = setup({ peers: { "cursor-sidebar": { reply: cursor([A, url(opaquePng)]), enabled: false }, "nested-sidebar": nested } });
+  assert.deepEqual((await disabled.scan()).candidates.map(item => item.peer), ["nested-sidebar"], "a disabled peer is not a failure");
+  await disabled.dispose();
+  const lower = setup({ peers: { "cursor-sidebar": { reply: cursor([A, url(opaquePng)]) }, "chat-sidebar": { reply: new Error("boom") } } });
+  assert.deepEqual((await lower.scan()).candidates.map(item => [item.projectId, item.peer]), [[A, "cursor-sidebar"]], "failures never block higher-priority peers");
+  await lower.dispose();
+});
+
+test("a partly failing Homepage lookup blocks only the projects it could not probe", async () => {
+  const ids = ["proj_aaaaaaaaaa", "proj_bbbbbbbbbb", "proj_cccccccccc", "proj_dddddddddd", "proj_eeeeeeeeee"];
+  const host = setup({
+    projects: ids.map(id => ({ id, name: id })),
+    peers: {
+      homepage: { reply: ({ input }) => input.projectId === ids[4] ? new Error("boom") : { kind: "missing" } },
+      "cursor-sidebar": { reply: cursor(...ids.map(id => [id, url(opaquePng)])) },
+    },
+  });
+  assert.deepEqual((await host.scan()).candidates.map(item => item.projectId).sort(), ids.slice(0, 4));
   await host.dispose();
+  const odd = setup({ peers: {
+    homepage: { reply: ({ input }) => input.projectId === A ? { kind: "weird" } : { kind: "missing" } },
+    "cursor-sidebar": { reply: cursor([A, url(opaquePng)], [B, url(opaquePng)]) },
+  } });
+  assert.deepEqual((await odd.scan()).candidates.map(item => item.projectId), [B], "a malformed per-project reply blocks that project");
+  await odd.dispose();
+});
+
+test("a peer response over the size cap is ignored and blocks lower-priority peers", async () => {
+  const filler = (size) => ({ projectId: "proj_zzzzzzzzzz", icon: "x".repeat(size) });
+  const huge = setup({ peers: {
+    "cursor-sidebar": { reply: { icons: [{ projectId: A, icon: url(opaquePng) }, filler(MAX_PEER_RESPONSE_CHARS)] } },
+    "nested-sidebar": { reply: { icons: [{ projectId: A, icon: { src: url(opaquePng) } }] } },
+  } });
+  assert.deepEqual((await huge.scan()).candidates, []);
+  assert.equal(huge.calls.some(item => item.pluginId === "nested-sidebar"), false);
+  await huge.dispose();
+  const large = setup({ peers: { "cursor-sidebar": { reply: { icons: [{ projectId: A, icon: url(opaquePng) }, filler(MAX_PEER_RESPONSE_CHARS - 10_000)] } } } });
+  assert.deepEqual((await large.scan()).candidates.map(item => item.projectId), [A]);
+  await large.dispose();
 });
 
 test("rejects svg, oversize, mismatched, truncated, non-base64 and oversize-pixel data", async () => {
@@ -289,7 +334,7 @@ test("skip lists exclude projects and orphaned provenance is cleaned up", async 
   await host.dispose();
 });
 
-test("a hanging peer times out and the next peer is still consulted", async () => {
+test("a hanging peer times out without throwing", async () => {
   const host = setup({ peers: {
     "cursor-sidebar": { hang: true },
     "nested-sidebar": { reply: { icons: [{ projectId: A, icon: { src: url(opaquePng) } }] } },
@@ -300,7 +345,8 @@ test("a hanging peer times out and the next peer is still consulted", async () =
     for (let i = 0; i < 400 && !host.calls.length; i += 1) await new Promise(resolve => setImmediate(resolve));
     assert.equal(host.calls[0].pluginId, "cursor-sidebar");
     mock.timers.tick(5000);
-    assert.deepEqual((await pending).candidates.map(item => item.peer), ["nested-sidebar"]);
+    assert.deepEqual((await pending).candidates, [], "the timed-out peer blocks lower-priority adoption for this scan");
+    assert.equal(host.calls.length, 1);
   } finally { mock.timers.reset(); }
   await host.dispose();
 });

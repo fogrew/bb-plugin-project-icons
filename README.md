@@ -49,7 +49,7 @@ All sources retain normalized PNG storage. The accepted server validates PNG str
 Other plugins can read a project's stored icon through the versioned read-only `resolveIcon` RPC. In the other direction, Project Icons can use artwork that other installed plugins already have for a project:
 
 - **Automatic adoption.** A project that has no icon takes artwork from the first installed supported plugin (Homepage, Cursor Sidebar, Nest, Chat Sidebar, in that order). While an icon is still auto-imported, it is replaced when that same plugin's artwork changes. The editor and Settings show the source ("From Cursor Sidebar, imported ..."). Turn it off for every project with **Use artwork from installed plugins automatically** in Settings.
-- **Manual choices win.** Saving or removing an icon marks that project manual for good; automatic adoption never touches it again. Icons that existed before this feature count as manual. To opt a project back in, remove its icon and choose **Re-enable automatic icons** in the editor.
+- **Manual choices win.** Saving or removing an icon marks that project manual for good; automatic adoption never touches it again. Icons that existed before this feature count as manual. Undoing a removal leaves the project manual too. A project whose icon was removed before this version was installed has no record, so it is treated as new and can receive peer artwork; turn the toggle off first if you do not want that. To opt a project back in, remove its icon and choose **Re-enable automatic icons** in the editor.
 - **Needs an open BB window.** Images are decoded in the browser with the same 64 x 64 PNG pipeline as manual imports, and Homepage images need the browser session. A scan runs shortly after BB loads, every 10 minutes while the tab is visible, and when you change these settings; it is rate limited and never blocks the UI.
 - **Explicit snapshot.** **Use Homepage artwork** in the image editor still previews Homepage artwork and saves it only on Save.
 
@@ -61,14 +61,14 @@ This section comes from reading each plugin's source at the versions named below
 
 ### Peer RPCs are undocumented
 
-BB publishes no project-icon interface. The method names and reply shapes Project Icons reads from other plugins were found in their source code; they are not published contracts, and a new release of any of those plugins (or of BB's experimental plugin SDK) can change them. Project Icons checks the peer's installed version, validates every reply, bounds and sniffs every image (PNG, JPEG or WebP only, at most 256 KiB inline or 2 MB over HTTP, at most 4096 px per side), and ignores a peer that does not match. A change therefore stops adoption from that plugin without affecting the sidebar.
+BB publishes no project-icon interface. The method names and reply shapes Project Icons reads from other plugins were found in their source code; they are not published contracts, and a new release of any of those plugins (or of BB's experimental plugin SDK) can change them. Project Icons checks the peer's installed version, validates every reply, bounds and sniffs every image (PNG, JPEG or WebP only, at most 256 KiB inline or 2 MB over HTTP, at most 4096 px per side), ignores a reply larger than 12 MB, and ignores a peer that does not match. A change therefore stops adoption from that plugin without affecting the sidebar. If a higher-priority plugin is installed but fails, times out or is not running, the projects it would serve wait for the next scan instead of taking artwork from a lower-priority plugin; a disabled or too-old plugin is simply skipped. A failing image is not retried for 30 minutes unless the peer's value changes.
 
 ### Artwork Project Icons consumes
 
 | Plugin (id) | Version checked | What is read |
 | --- | --- | --- |
-| Homepage (`homepage`) | 0.2.7+ | `getProjectArtwork` says an image exists; the browser fetches `/project-icon` with its own session |
-| Cursor Sidebar (`cursor-sidebar`) | 0.3.5+ | `listProjectIcons`: PNG, JPEG or WebP data URLs; glyph, emoji and monogram values are ignored |
+| Homepage (`homepage`) | 0.2.7+ | `getProjectArtwork` says an image exists; the browser fetches `/project-icon` with its own session (at most 2 MB) |
+| Cursor Sidebar (`cursor-sidebar`) | 0.3.5+ | `listProjectIcons`: PNG, JPEG or WebP data URLs of at most 256 KiB; glyph, emoji and monogram values are ignored |
 | Nest (`nested-sidebar`) | 0.5.0+ | `listProjectIcons`: favicon data URLs; SVG and ICO are ignored |
 | Chat Sidebar (`chat-sidebar`) | 0.2.8+ | `images_get`: `project:<id>` entries |
 

@@ -11,6 +11,7 @@ with the explicit pre-1.0 policy in [CONTRIBUTING.md](CONTRIBUTING.md).
 ### Changed
 
 - `resolveIcon` results for an auto-adopted icon carry an optional `adoptedFrom` plugin id (contract version 1 is otherwise unchanged), and images imported from Homepage are bounded by decoded dimensions (4096 px per side).
+- Projects whose icon was removed before this version have no provenance record and become eligible for automatic adoption; turn off **Use artwork from installed plugins automatically** in Settings to keep them without an icon.
 - Repository icon discovery recognizes `app-icon`, `apple-touch-icon`, `android-chrome-*`, `ic_launcher`, size-only names in icon directories (`src-tauri/icons`, `mipmap-*`, `*.appiconset`) and `build/icon.png`, ranks larger square sizes and higher Android densities first, and runs three more host queries (`apple-touch`, `android-chrome`, `ic_launcher`). Safety limits are unchanged; `.claude`, `bin` and `obj` are now skipped.
 
 ### Added

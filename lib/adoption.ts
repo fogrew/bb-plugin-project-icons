@@ -49,28 +49,41 @@ export type ScanDeps = {
 };
 type Found = { artwork: InlineArtwork } | { http: true };
 type Call = (method: string, input: null | Record<string, string>) => Promise<unknown>;
+type Lookup = { found: Map<string, Found>; unresolved: Set<string> };
 
-async function lookup(peer: PeerId, wanted: Target[], call: Call): Promise<Map<string, Found>> {
+export const MAX_PEER_RESPONSE_CHARS = 12_000_000;
+
+function withinResponseLimit(reply: unknown): boolean {
+  try { return (JSON.stringify(reply)?.length ?? Infinity) <= MAX_PEER_RESPONSE_CHARS; }
+  catch { return false; }
+}
+
+async function lookup(peer: PeerId, wanted: Target[], call: Call): Promise<Lookup> {
   const found = new Map<string, Found>();
+  const unresolved = new Set<string>();
   if (peer === "homepage") {
-    try {
-      for (let index = 0; index < wanted.length; index += HOMEPAGE_CHUNK) {
-        const chunk = wanted.slice(index, index + HOMEPAGE_CHUNK);
+    for (let index = 0; index < wanted.length; index += HOMEPAGE_CHUNK) {
+      const chunk = wanted.slice(index, index + HOMEPAGE_CHUNK);
+      try {
         const replies = await Promise.all(chunk.map(target => call("getProjectArtwork", { projectId: target.projectId })));
         replies.forEach((raw, offset) => {
           const reply = peerReply.safeParse(raw);
-          if (reply.success && reply.data.kind === "image") found.set(chunk[offset].projectId, { http: true });
+          if (!reply.success) unresolved.add(chunk[offset].projectId);
+          else if (reply.data.kind === "image") found.set(chunk[offset].projectId, { http: true });
         });
+      } catch {
+        for (const target of wanted.slice(index)) unresolved.add(target.projectId);
+        break;
       }
-    } catch { /* keep what earlier chunks found */ }
-    return found;
+    }
+    return { found, unresolved };
   }
   const spec = LIST_PEERS[peer];
   const entries = spec.entries(await call(spec.method, spec.input));
   if (!entries) throw new Error("malformed reply");
   const artwork = await decodeEntries(entries, new Set(wanted.map(target => target.projectId)));
   for (const [id, value] of artwork) found.set(id, { artwork: value });
-  return found;
+  return { found, unresolved };
 }
 
 export async function findCandidates(deps: ScanDeps, requested: Target[], parent?: AbortSignal): Promise<Candidate[]> {
@@ -83,20 +96,29 @@ export async function findCandidates(deps: ScanDeps, requested: Target[], parent
   let pending = targets;
   for (const peer of PEERS) {
     const wanted = pending.filter(target => target.source === null || target.source === peer.id);
-    if (!wanted.length || !("ok" in peerAvailability(plugins, peer.id, peer.minVersion))) continue;
-    const call: Call = (method, input) =>
-      withTimeout(signal => deps.callPeer(peer.id, method, input, signal), PEER_TIMEOUT_MS, parent);
-    let found: Map<string, Found>;
-    try { found = await lookup(peer.id, wanted, call); }
-    catch (error) {
-      deps.warn(`Peer artwork unavailable (${peer.id}: ${error instanceof Error ? error.constructor.name : "unknown"})`);
+    if (!wanted.length) continue;
+    const availability = peerAvailability(plugins, peer.id, peer.minVersion);
+    if (!("ok" in availability)) {
+      if (availability.reason === "not-running") pending = pending.filter(target => !wanted.includes(target));
       continue;
     }
-    const resolved = new Set<Target>();
+    const call: Call = async (method, input) => {
+      const reply = await withTimeout(signal => deps.callPeer(peer.id, method, input, signal), PEER_TIMEOUT_MS, parent);
+      if (!withinResponseLimit(reply)) throw new Error("peer response too large");
+      return reply;
+    };
+    let result: Lookup;
+    try { result = await lookup(peer.id, wanted, call); }
+    catch (error) {
+      deps.warn(`Peer artwork unavailable (${peer.id}: ${error instanceof Error ? error.constructor.name : "unknown"})`);
+      result = { found: new Map(), unresolved: new Set(wanted.map(target => target.projectId)) };
+    }
+    const settled = new Set<Target>();
     for (const target of wanted) {
-      const hit = found.get(target.projectId);
+      if (result.unresolved.has(target.projectId)) { settled.add(target); continue; }
+      const hit = result.found.get(target.projectId);
       if (!hit) continue;
-      resolved.add(target);
+      settled.add(target);
       if (!("artwork" in hit)) {
         candidates.push({ projectId: target.projectId, peer: peer.id, revision: target.revision, transport: "http", hash: null, knownHash: target.knownHash });
       } else if (hit.artwork.hash !== target.knownHash) {
@@ -106,7 +128,7 @@ export async function findCandidates(deps: ScanDeps, requested: Target[], parent
         });
       }
     }
-    pending = pending.filter(target => !resolved.has(target));
+    pending = pending.filter(target => !settled.has(target));
   }
   return trimBatch(candidates);
 }

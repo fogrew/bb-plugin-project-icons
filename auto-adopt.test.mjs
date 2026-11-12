@@ -101,3 +101,62 @@ test("rounds are bounded, disabled scans stop and aborts end the run", async () 
   await createAdopter(aborted.client).run({ signal: controller.signal });
   assert.equal(aborted.log.adopts.length, 1);
 });
+
+function persistent(candidates) {
+  const state = fake([]);
+  state.client.scan = async ({ skip }) => ({ status: "ok", candidates: candidates().filter(item => !skip.includes(item.projectId)) });
+  return state;
+}
+const MINUTE = 60000;
+
+test("a failing image is not retried until the backoff ends, the peer value changes or the user forces a run", async () => {
+  let clock = 0;
+  let current = inline("proj_aaaaaaaaaa");
+  const { client, log } = persistent(() => [current]);
+  client.normalise = async file => { log.normalised.push(file); throw new Error("decode failed"); };
+  const adopter = createAdopter(client, { now: () => clock });
+  assert.deepEqual(await run(adopter), { adopted: 0, skipped: 0, failed: 1 });
+  clock += 40000;
+  assert.deepEqual(await run(adopter), { adopted: 0, skipped: 1, failed: 0 });
+  assert.equal(log.normalised.length, 1, "backed off");
+  clock += 31 * MINUTE;
+  assert.equal((await run(adopter)).failed, 1);
+  assert.equal(log.normalised.length, 2, "retried after the backoff");
+  clock += 40000;
+  current = inline("proj_aaaaaaaaaa", { hash: "e".repeat(64) });
+  assert.equal((await run(adopter)).failed, 1);
+  assert.equal(log.normalised.length, 3, "a changed peer value is a new item");
+  clock += 40000;
+  assert.equal((await run(adopter)).skipped, 1);
+  assert.equal((await run(adopter, { force: true })).failed, 1);
+  assert.equal(log.normalised.length, 4, "force clears the backoff");
+  const offline = persistent(() => [http("proj_bbbbbbbbbb")]);
+  offline.client.fetchImage = async projectId => { offline.log.fetches.push({ projectId }); throw new Error("offline"); };
+  const second = createAdopter(offline.client, { now: () => clock });
+  await run(second);
+  clock += 40000;
+  assert.equal((await run(second)).skipped, 1);
+  assert.equal(offline.log.fetches.length, 1, "a failed Homepage fetch is not repeated within the backoff");
+});
+
+test("unchanged Homepage images are not fetched again within the recheck window", async () => {
+  let clock = 0;
+  const known = await contentHash(transparentPng);
+  const { client, log } = persistent(() => [http("proj_aaaaaaaaaa", { revision: 3, knownHash: known })]);
+  const adopter = createAdopter(client, { now: () => clock });
+  assert.deepEqual(await run(adopter), { adopted: 0, skipped: 1, failed: 0 });
+  assert.equal(log.fetches.length, 1);
+  clock += 40000;
+  assert.deepEqual(await run(adopter), { adopted: 0, skipped: 1, failed: 0 });
+  assert.equal(log.fetches.length, 1, "served from the known-hash memo");
+  clock += 31 * MINUTE;
+  await run(adopter);
+  assert.equal(log.fetches.length, 2, "rechecked after the window");
+  clock += 40000;
+  await run(adopter, { force: true });
+  assert.equal(log.fetches.length, 3, "force bypasses the memo");
+  const changed = persistent(() => [http("proj_bbbbbbbbbb", { revision: 3, knownHash: "f".repeat(64) })]);
+  const next = createAdopter(changed.client, { now: () => clock });
+  assert.equal((await run(next)).adopted, 1, "a different hash is adopted");
+  assert.equal(changed.log.adopts.length, 1);
+});

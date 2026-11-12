@@ -49,7 +49,6 @@ function fromRows(raw: unknown, pick: (row: unknown) => [string, unknown] | null
   return parsed.data.icons.flatMap(row => { const entry = pick(row); return entry ? [entry] : []; });
 }
 
-// Method names and shapes were read from each plugin's source; they are not published contracts.
 export const LIST_PEERS: Record<Exclude<PeerId, "homepage">, ListPeer> = {
   "cursor-sidebar": {
     method: "listProjectIcons", input: {},

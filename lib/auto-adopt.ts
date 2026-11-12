@@ -3,6 +3,9 @@ import type { Candidate } from "./adoption.ts";
 
 const MAX_ROUNDS = 3;
 const ITEM_TIMEOUT_MS = 15000;
+const FAILURE_BACKOFF_MS = 30 * 60 * 1000;
+const RECHECK_MS = 30 * 60 * 1000;
+const MAX_MEMO = 256;
 const EXTENSIONS = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp" } as const;
 
 export type AdoptClient = {
@@ -21,18 +24,29 @@ function inlineFile(candidate: Candidate): File {
   return new File([bytes], `peer-icon.${EXTENSIONS[candidate.mimeType]}`, { type: candidate.mimeType });
 }
 
+function remember<T>(map: Map<string, T>, key: string, value: T) {
+  map.delete(key);
+  map.set(key, value);
+  while (map.size > MAX_MEMO) map.delete(map.keys().next().value!);
+}
+
 export function createAdopter(client: AdoptClient, options: { minIntervalMs?: number; now?: () => number } = {}) {
   const { minIntervalMs = 30000, now = Date.now } = options;
   let running = false;
   let rerun = false;
   let last = -Infinity;
+  const failures = new Map<string, number>();
+  const unchanged = new Map<string, { hash: string; until: number }>();
 
   async function adoptOne(candidate: Candidate, signal: AbortSignal): Promise<"adopted" | "skipped"> {
     const file = candidate.transport === "inline"
       ? inlineFile(candidate)
       : await client.fetchImage(candidate.projectId, AbortSignal.any([signal, AbortSignal.timeout(ITEM_TIMEOUT_MS)]));
     const hash = candidate.hash ?? await contentHash(new Uint8Array(await file.arrayBuffer()));
-    if (candidate.knownHash === hash) return "skipped";
+    if (candidate.knownHash === hash) {
+      if (candidate.transport === "http") remember(unchanged, candidate.projectId, { hash, until: now() + RECHECK_MS });
+      return "skipped";
+    }
     const base64 = await client.normalise(file);
     const result = await client.adopt({ projectId: candidate.projectId, peer: candidate.peer, hash, base64, ifRevision: candidate.revision });
     return result.status === "adopted" ? "adopted" : "skipped";
@@ -46,13 +60,21 @@ export function createAdopter(client: AdoptClient, options: { minIntervalMs?: nu
       for (const candidate of candidates) {
         if (signal.aborted) return;
         skip.add(candidate.projectId);
+        const key = `${candidate.projectId}|${candidate.peer}|${candidate.hash ?? ""}`;
+        const known = unchanged.get(candidate.projectId);
+        if ((failures.get(key) ?? 0) > now() ||
+            (candidate.transport === "http" && known && known.until > now() && known.hash === candidate.knownHash)) {
+          summary.skipped += 1;
+          continue;
+        }
         try { summary[await adoptOne(candidate, signal)] += 1; }
-        catch { summary.failed += 1; }
+        catch { remember(failures, key, now() + FAILURE_BACKOFF_MS); summary.failed += 1; }
       }
     }
   }
 
   async function run({ force = false, signal }: RunOptions): Promise<RunSummary | null> {
+    if (force) { failures.clear(); unchanged.clear(); }
     if (running) { if (force) rerun = true; return null; }
     if (!force && now() - last < minIntervalMs) return null;
     running = true;
