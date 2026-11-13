@@ -8,6 +8,8 @@ with the explicit pre-1.0 policy in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Unreleased
 
+## 0.4.0 - 2026-11-13
+
 ### Changed
 
 - Removing an icon now resets the project to automatic: the next scan can adopt peer artwork again (for example from Homepage). Turn off **Use artwork from installed plugins automatically** in Settings to keep a removed icon empty.
