@@ -7,8 +7,8 @@ export const PEER_MIN_VERSION = [0, 2, 7] as const;
 export const PEER_TIMEOUT_MS = 5000;
 export const MAX_TRAIL = 8;
 
-export const iconHttpPath = (projectId: string, revision: number) =>
-  `/api/v1/plugins/${PLUGIN_ID}/http/icon?projectId=${encodeURIComponent(projectId)}&v=${revision}`;
+export const iconHttpPath = (projectId: string, revision: number, theme?: "light" | "dark") =>
+  `/api/v1/plugins/${PLUGIN_ID}/http/icon?projectId=${encodeURIComponent(projectId)}${theme ? `&theme=${theme}` : ""}&v=${revision}`;
 export const peerImagePath = (projectId: string) =>
   `/api/v1/plugins/${PEER_PLUGIN_ID}/http/project-icon?projectId=${encodeURIComponent(projectId)}`;
 
@@ -34,7 +34,7 @@ export const resolveIconInput = z.object({
 export const resolveIconOutput = z.discriminatedUnion("status", [
   z.object({
     version, status: z.literal("found"), projectId, revision: z.number(), source: z.literal("manual"),
-    theme: z.literal("any"), mimeType: z.literal("image/png"), width: z.literal(64), height: z.literal(64),
+    theme: z.enum(["any", "light", "dark"]), mimeType: z.literal("image/png"), width: z.literal(64), height: z.literal(64),
     sizeBytes: z.number(), base64: z.string(), urlPath: z.string(), adoptedFrom: z.string().optional(),
   }),
   z.object({ version, status: z.literal("not-modified"), projectId, revision: z.number() }),

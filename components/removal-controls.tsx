@@ -7,6 +7,9 @@ export function RemovalControls({ project, state }: { project: Project; state: R
   return <div className="bb-project-icons-removal">
     <button type="button" disabled={project.revision === null || operation !== null}
       onClick={() => void state.mutate("remove", undefined, project.id)}>Remove icon</button>
+    {(["light", "dark"] as const).map(theme => project.variants?.[theme] != null && <button key={theme} type="button"
+      disabled={operation !== null} onClick={() => void state.mutate("remove", undefined, project.id, theme)}>
+      Remove {theme} variant</button>)}
     {undo?.projectId === selected && <div>
       <p id={deadlineId} role="status">Undo available until <time dateTime={new Date(undo.expiresAt).toISOString()}>
         {new Date(undo.expiresAt).toLocaleTimeString()}</time>. A newer icon change or server reload cancels Undo.</p>

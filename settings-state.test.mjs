@@ -203,3 +203,52 @@ test("cancelled refresh cannot update a remounted settings view", async () => {
   await refresh;
   assert.deepEqual(state.getSnapshot().projects, []);
 });
+
+test("variant target: unavailable without a default icon, sent with save and reset on selection change", async () => {
+  const { state, calls } = setup();
+  await state.refresh();
+  state.select(a.id);
+  state.setTarget("dark");
+  assert.equal(state.getSnapshot().target, "default");
+  await state.mutate("save", async () => "png", a.id);
+  assert.deepEqual(calls.filter(call => call !== "changed"), [{ projectId: a.id, base64: "png" }]);
+  calls.length = 0;
+  state.select(b.id);
+  state.setTarget("dark");
+  assert.equal(state.getSnapshot().target, "dark");
+  await state.mutate("save", async () => "png", b.id);
+  assert.deepEqual(calls.filter(call => call !== "changed"), [{ projectId: b.id, base64: "png", theme: "dark" }]);
+  assert.equal(state.getSnapshot().notice.text, "Dark variant saved.");
+  state.select(a.id);
+  assert.equal(state.getSnapshot().target, "default");
+});
+
+test("variant removal sends the theme, never offers Undo and keeps the default target rules", async () => {
+  const { state, calls } = setup({ remove: async input => { calls.push(input); return { undo: null }; } });
+  await state.refresh();
+  state.select(b.id);
+  assert.equal(await state.mutate("remove", undefined, b.id, "light"), "success");
+  assert.deepEqual(calls.filter(call => call !== "changed"), [{ projectId: b.id, theme: "light" }]);
+  assert.equal(state.getSnapshot().undo, null);
+  assert.equal(state.getSnapshot().notice.text, "Light variant removed.");
+});
+
+test("a refresh that finds the default icon gone drops a variant target", async () => {
+  let rows = [b];
+  const { state } = setup({ list: async () => ({ projects: rows }) });
+  await state.refresh();
+  state.setTarget("light");
+  assert.equal(state.getSnapshot().target, "light");
+  rows = [{ ...b, revision: null }];
+  await state.refresh();
+  assert.equal(state.getSnapshot().target, "default");
+});
+
+test("failure notices name the variant", async () => {
+  const { state } = setup({ save: async () => { throw new Error("no"); } });
+  await state.refresh();
+  state.select(b.id);
+  state.setTarget("light");
+  await state.mutate("save", async () => "png", b.id);
+  assert.equal(state.getSnapshot().notice.text, "Could not save light variant. Check the draft and try again.");
+});

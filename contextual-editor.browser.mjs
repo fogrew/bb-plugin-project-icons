@@ -175,7 +175,13 @@ try {
   assert.equal(await page.getByRole("button",{name:"Menu for B"}).evaluate(el=>el===document.activeElement),true);
   await open("Menu for B");
   assert.equal(await draft.count(),0);
-  for(let i=0;i<9;i++) await page.keyboard.press("Tab");
+  let wrapped = false;
+  for(let i=0;i<30 && !wrapped;i++) {
+    await page.keyboard.press("Tab");
+    assert.equal(await outer.evaluate(el=>el.contains(document.activeElement) || document.activeElement===document.body),true);
+    wrapped = await outer.evaluate(el=>document.activeElement===el);
+  }
+  assert.equal(wrapped,true);
   assert.equal(await outer.evaluate(el=>el.contains(document.activeElement)),true);
   await close.click();
   checks.push("Escape discards unsaved draft, returns focus and repeated open starts clean with modal Tab containment");
