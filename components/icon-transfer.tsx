@@ -2,12 +2,12 @@ import { useEffect, useId, useRef, useState, type ChangeEvent } from "react";
 import { MAX_PAYLOAD_CHARS } from "../lib/icon-transfer";
 
 export type PreviewEntry = { sourceId: string; name: string; image: string; hash: string; target: string | null };
-export type PreviewProject = { id: string; name: string; revision: number | null; hash: string | null; automatic: boolean };
+export type PreviewProject = { id: string; name: string; revision: number | null; hash: string | null; automatic: boolean; variants: number };
 type Rejected = { status: "rejected"; code: string; message: string };
 type Decision = { sourceId: string; targetId: string; expectedRevision: number | null };
 export type TransferApi = {
   save(text: string): Promise<boolean>;
-  exportIcons(): Promise<{ status: "ok"; json: string; count: number; skipped: number } | Rejected>;
+  exportIcons(): Promise<{ status: "ok"; json: string; count: number; skipped: number; omittedVariants: number } | Rejected>;
   preview(payload: string): Promise<{ status: "ok"; entries: PreviewEntry[]; projects: PreviewProject[] } | Rejected>;
   apply(payload: string, decisions: Decision[]): Promise<
     { status: "imported"; imported: number; pinned: number; unchanged: number } | { status: "failed"; rolledBack: boolean } | Rejected>;
@@ -63,7 +63,7 @@ export function IconTransfer({ api, iconUrl, onImported }: {
       else if (result.count === 0) setNotice({ kind: "error", text: "No project has an icon to export yet." });
       else if (!(await api.save(result.json))) setNotice({ kind: "error", text: "The file could not be saved." });
       else {
-        setNotice({ kind: "success", text: `Exported ${plural(result.count, "icon")} to ${FILE_NAME}.${result.skipped ? ` ${plural(result.skipped, "unreadable icon")} left out.` : ""}` });
+        setNotice({ kind: "success", text: `Exported ${plural(result.count, "icon")} to ${FILE_NAME}.${result.skipped ? ` ${plural(result.skipped, "unreadable icon")} left out.` : ""}${result.omittedVariants ? ` ${plural(result.omittedVariants, "light or dark variant")} not included.` : ""}` });
       }
     } catch { if (version === generation.current) setNotice({ kind: "error", text: "Could not export icons. Try again." }); }
     finally { if (version === generation.current) setBusy(null); }
@@ -211,7 +211,7 @@ export function IconTransfer({ api, iconUrl, onImported }: {
                 {outcome === "add" && `Adds an icon to ${label(target!, review.projects)}.`}
                 {outcome === "same" && `${label(target!, review.projects)} already has this exact icon. Nothing to change.`}
                 {outcome === "pin" && `${label(target!, review.projects)} already has this exact icon from another plugin. Importing keeps it as a manual icon, so that plugin stops updating it.`}
-                {outcome === "replace" && `Replaces the current icon of ${label(target!, review.projects)}.`}
+                {outcome === "replace" && `Replaces the current icon of ${label(target!, review.projects)}.${target!.variants ? ` Its ${plural(target!.variants, "light or dark variant")} stay${target!.variants === 1 ? "s" : ""}.` : ""}`}
                 {target && entry.target === target.id && target.name !== entry.name ? ` The file calls this project "${entry.name}".` : ""}
               </p>
             </div>

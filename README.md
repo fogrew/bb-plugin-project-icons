@@ -32,7 +32,9 @@ Removing an icon offers **Undo removal** for up to 15 seconds, with a visible de
 
 BB stores icons in the plugin's server-side storage and serves them through same-origin plugin routes. Desktop and remote browsers connected to the same BB server share the assignments. Changes update open clients through BB realtime events and also refresh when a tab regains focus.
 
-For project headings with an image, Project Icons hides the Project Colors dot to avoid showing two icons. Project Colors remains installed and controls other projects as before.
+Open **Light and dark variants (optional)** in the editor to give a project a different image per BB theme. The icon you saved first stays the default and is used in every theme; a light or dark variant replaces it only while BB is in that theme. Choose **Light theme only** or **Dark theme only**, pick the image as usual (the 20 px preview then sits on a light or dark surface) and Save. A variant needs a default icon first, can be removed on its own with **Remove light variant** or **Remove dark variant**, and is removed together with the default by **Remove icon** (Undo restores both). The sidebar follows BB's theme live, without reloading. See [Theme variants](docs/theme-variants.md) for storage and the migration note. `resolveIcon` still returns the default icon.
+
+Project Icons no longer hides the Project Colors dot. It does not read Project Colors at all: that plugin keeps its colours in browser `localStorage` and exposes no contract, so there is no safe way to use them as a background or outline (see [Theme variants](docs/theme-variants.md#project-colors)).
 
 Choose **Emoji** to browse 72 local Unicode Emoji 15.1 choices. Search English names or an exact emoji; skin tone variants are separate named choices. Tab enters each group, arrows move between choices, Home/End reach the first/last choice, and Enter or Space selects. Escape cancels the emoji draft and returns focus to search. Image/Emoji tabs support Left/Right and Home/End.
 
@@ -105,7 +107,7 @@ Not consumed: Dockside, Compact UI, Nest and Chat Sidebar colours or hues, BB Si
 
 Simple Sidebar Folders, Project Page, Thread Hover Cards, Sessions Switcher, Chat Tabs and Project Themes work next to Project Icons: they act on other elements (folder order, title links, row tints, tabs) or show no project visuals. Project Themes' colour is additionally read as a hint for automatic initials. Compact UI and Pane Workspaces colour the project label beside our image. Homepage shows its own artwork on the homepage only.
 
-**Project Colors:** on any project heading that shows our image, Project Icons hides the Project Colors dot and its palette, so two icons are not shown. Row tint and title colour stay, and the palette remains available from the thread header action. You lose the sidebar colour picker while an icon is shown.
+**Project Colors:** Project Icons leaves the Project Colors dot, palette, row tint and title colour alone, so a project heading with an image can show our image and the colour dot side by side. Earlier versions hid the dot on headings with an image; that was unconditional and has been removed. Project Colors is never read and its colours are not used as an icon background or outline.
 
 ### Plugins that replace the thread list
 
@@ -183,3 +185,5 @@ See [Glyph and initials contract](docs/icon-presets.md) for source/license and v
 Projects without a saved assignment use automatic initials in the sidebar, Settings thumbnails and current preview. These reuse the Unicode rules and local palette above; project ID determines color, and renaming refreshes initials. Fallback PNGs are generated only in browser memory: they never change saved revisions, Undo or recents. Every explicit saved PNG takes priority. Remove reveals the fallback; Undo restores the exact saved PNG.
 
 Run `node automatic-icons.browser.mjs` after building with the optional browser tooling above for the bounded native sidebar DOM fixture. It checks shared Unicode PNGs, empty/duplicate names, renaming, new rows, saved precedence, realtime removal/restoration and disposal including a late fetch. Results and a screenshot are in ignored `dist/automatic-icons-browser/`. Fetch responses are mocked; this does not prove installed BB integration. The grid harness also checks matching Settings fallback PNGs, name refresh and unchanged RPC-write/storage counts.
+
+Run `node theme-variants.browser.mjs` (same tooling, after `npm run build`) for the sidebar theme switch: it flips a fixture `<html>` between `light` and `dark` (and the `color-scheme` fallback) and checks that the variant images follow without navigation, are drawn at 20 px, keep at least 4.5:1 contrast on their surface and leave a Project Colors dot visible, and that a failing variants route keeps the default icons. `node variant-editor.browser.mjs` drives the real Settings editor (theme target, 20 px preview surface, variant save, previews and removal). Both use fixtures for BB's DOM, SDK and routes and write ignored output under `dist/`; neither is live BB evidence.

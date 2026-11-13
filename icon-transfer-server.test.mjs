@@ -520,3 +520,49 @@ test("imports interleave safely with removals, restores and automatic adoption",
   assert.deepEqual([rows[B].automatic, rows[D].automatic], [false, true]);
   await fixture.dispose();
 });
+
+test("export leaves theme variants out and reports how many", async () => {
+  const fixture = await host([{ id: A, name: "Alpha" }, { id: B, name: "Beta" }], { [A]: transparentPng, [B]: opaquePng });
+  await fixture.call("save", { projectId: A, base64: b64(opaquePng), theme: "dark" });
+  await fixture.call("save", { projectId: A, base64: b64(opaquePng), theme: "light" });
+  await fixture.call("save", { projectId: B, base64: b64(transparentPng), theme: "dark" });
+  const result = await fixture.call("exportIcons", null);
+  assert.deepEqual([result.status, result.count, result.omittedVariants], ["ok", 2, 3]);
+  const parsed = JSON.parse(result.json);
+  assert.deepEqual(parsed.icons.map(entry => Object.keys(entry).join()), Array(2).fill("projectId,projectName,image"));
+  assert.ok(Buffer.from(parsed.icons[0].image, "base64").equals(transparentPng));
+  await fixture.dispose();
+});
+
+test("replacing a default keeps the project's variants and issues a newer revision", async () => {
+  const fixture = await host([{ id: A, name: "Alpha" }], { [A]: transparentPng });
+  await fixture.call("save", { projectId: A, base64: b64(opaquePng), theme: "dark" });
+  const before = (await fixture.call("list", null)).projects[0];
+  const payload = file([[A, "Alpha", opaquePng]]);
+  const { projects: [row] } = await fixture.call("importPreview", { payload });
+  assert.equal(row.variants, 1);
+  const variantsBefore = await fixture.bb.storage.kv.get("variants");
+  const darkBefore = await fixture.bb.storage.kv.get(`image:${A}:dark`);
+  assert.deepEqual(await fixture.call("importApply", { payload, decisions: [decide(A, A, row.revision)] }), { status: "imported", imported: 1, pinned: 0, unchanged: 0 });
+  const after = (await fixture.call("list", null)).projects[0];
+  assert.ok(after.revision > Math.max(before.revision, before.variants.dark));
+  assert.equal(after.variants.dark, before.variants.dark);
+  assert.deepEqual(await fixture.bb.storage.kv.get("variants"), variantsBefore);
+  assert.equal(await fixture.bb.storage.kv.get(`image:${A}:dark`), darkBefore);
+  assert.ok((await icon(fixture, A)).equals(opaquePng));
+  await fixture.dispose();
+});
+
+test("adding a default to a project with leftover variants discards them, as Save does", async () => {
+  const fixture = await host([{ id: A, name: "Alpha" }, { id: B, name: "Beta" }], { [B]: transparentPng });
+  await fixture.bb.storage.kv.set("variants", { [A]: { dark: 5 } });
+  await fixture.bb.storage.kv.set(`image:${A}:dark`, b64(opaquePng));
+  const payload = file([[A, "Alpha", opaquePng]]);
+  const { projects } = await fixture.call("importPreview", { payload });
+  assert.equal(projects.find(row => row.id === A).variants, 0);
+  assert.deepEqual(await fixture.call("importApply", { payload, decisions: [decide(A, A)] }), { status: "imported", imported: 1, pinned: 0, unchanged: 0 });
+  assert.equal(await fixture.bb.storage.kv.get(`image:${A}:dark`), undefined);
+  const row = (await fixture.call("list", null)).projects.find(project => project.id === A);
+  assert.deepEqual(row.variants, { light: null, dark: null });
+  await fixture.dispose();
+});

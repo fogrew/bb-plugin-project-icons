@@ -13,6 +13,11 @@ type Props = {
   children: ReactNode;
 };
 
+function variantSummary(row: Project): string {
+  const themes = (["light", "dark"] as const).filter(theme => row.variants?.[theme] != null);
+  return themes.length ? ` (${themes.join(" and ")} variant${themes.length > 1 ? "s" : ""})` : "";
+}
+
 function IconPreview({ src }: { src: string }) {
   const [failed, setFailed] = useState(false);
   return failed ? <span className="bb-project-icons-placeholder">Preview unavailable</span>
@@ -118,7 +123,7 @@ export function ProjectList({ projects, selected, query, onQuery, onSelect, icon
             <span className="bb-project-icons-name">{row.name}</span>
             {(names.get(row.name) ?? 0) > 1 && <small>{row.id}</small>}
           </span>
-          <span className="bb-project-icons-assignment">{row.revision !== null ? "Icon assigned" : "Automatic initials"}</span>
+          <span className="bb-project-icons-assignment">{row.revision !== null ? `Icon assigned${variantSummary(row)}` : "Automatic initials"}</span>
           <span className="bb-project-icons-action">{opened && selected === row.id ? "Fold editor" : "Edit icon"}</span>
           <svg className="bb-project-icons-chevron" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.5" /></svg>
         </button>

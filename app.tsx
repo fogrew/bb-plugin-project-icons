@@ -1,7 +1,8 @@
 import { mountIcons } from "./lib/sidebar-icons";
 import { AutomaticIcon } from "./components/automatic-icon";
 import { useEffect, useMemo, useRef, useId, useState, useSyncExternalStore } from "react";
-import { definePluginApp, experimental_saveFile, useRealtime, useRpc } from "@get-bb/plugin-sdk/app";
+import { definePluginApp, useRealtime, useRpc } from "@get-bb/plugin-sdk/app";
+import * as sdk from "@get-bb/plugin-sdk/app";
 import type { rpcContract } from "./server";
 import { ProjectList } from "./components/project-list";
 import { createSettingsState } from "./settings-state";
@@ -11,12 +12,14 @@ import { RemovalControls } from "./components/removal-controls";
 import { AdoptionStatus, AutomaticToggle } from "./components/adoption-controls";
 import { AutoAdopt, SCAN_EVENT } from "./components/auto-adopt";
 import { FILE_NAME, IconTransfer, downloadFile, type TransferApi } from "./components/icon-transfer";
+import { TargetPicker, VariantPreviews } from "./components/variant-controls";
 import { fetchPeerImage } from "./lib/peer-image";
 import "./app.css";
 import { version } from "./package.json";
 
 const base = "/api/v1/plugins/project-icons/http";
-const iconUrl = (id: string, revision: number) => `${base}/icon?projectId=${encodeURIComponent(id)}&v=${revision}`;
+const iconUrl = (id: string, revision: number, theme?: "light" | "dark") =>
+  `${base}/icon?projectId=${encodeURIComponent(id)}${theme ? `&theme=${theme}` : ""}&v=${revision}`;
 
 function Settings({ projectId }: { projectId?: string } = {}) {
   const rpc = useRpc<typeof rpcContract>();
@@ -29,7 +32,7 @@ function Settings({ projectId }: { projectId?: string } = {}) {
     remove: (input) => rpc.call("removeWithUndo", input),
     restore: (input) => rpc.call("restore", input),
   }, () => window.dispatchEvent(new Event("bb-project-icons-changed"))), [rpc, projectId]);
-  const { projects, selected, loading, refreshing, loadError, operation, automaticAdoption } =
+  const { projects, selected, target, loading, refreshing, loadError, operation, automaticAdoption } =
     useSyncExternalStore(state.subscribe, state.getSnapshot);
   const [query, setQuery] = useState("");
   const [adoptionBusy, setAdoptionBusy] = useState(false);
@@ -58,24 +61,26 @@ function Settings({ projectId }: { projectId?: string } = {}) {
   }), [rpc]);
   const transfer = useMemo<TransferApi>(() => ({
     save: async text => {
-      try { return (await experimental_saveFile({ fileName: FILE_NAME, blob: new Blob([text], { type: "application/json" }) })) === "started"; }
+      try { return (await sdk.experimental_saveFile({ fileName: FILE_NAME, blob: new Blob([text], { type: "application/json" }) })) === "started"; }
       catch { downloadFile(text); return true; }
     },
     exportIcons: () => rpc.call("exportIcons"),
     preview: payload => rpc.call("importPreview", { payload }),
     apply: (payload, decisions) => rpc.call("importApply", { payload, decisions }),
   }), [rpc]);
-  const editor = project && <fieldset className="bb-project-icons-editor">
+  const editor = project && <fieldset className="bb-project-icons-editor" data-bb-icon-target={target}>
       <legend>Icon for {project.name}</legend>
       <div className="bb-project-icons-preview">
         {project.revision !== null ? <PngPreview url={iconUrl(project.id, project.revision)} label="Current project icon" /> : <><AutomaticIcon id={project.id} name={project.name} /><span>Automatic initials</span></>}
         {projects.some((row) => row.id !== project.id && row.name === project.name) &&
           <small className="bb-project-icons-id">{project.id}</small>}
       </div>
+      <VariantPreviews project={project} iconUrl={iconUrl} />
       <AdoptionStatus project={project} automaticAdoption={automaticAdoption} busy={busy || adoptionBusy}
         onEnable={() => void changeAdoption(() => rpc.call("enableAutomatic", { projectId: project.id }), "Could not re-enable automatic icons. Try again.")} />
       {adoptionError && <p role="alert">{adoptionError}</p>}
-      <IconPicker key={project.id} project={project} state={state} busy={busy} repository={repository} peerArtwork={peerArtwork} />
+      <TargetPicker key={project.id} project={project} state={state} />
+      <IconPicker key={`${project.id}:${target}`} project={project} state={state} busy={busy} repository={repository} peerArtwork={peerArtwork} />
       <RemovalControls project={project} state={state} />
     </fieldset>;
   return <div className="bb-project-icons-settings">

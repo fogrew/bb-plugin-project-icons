@@ -40,7 +40,7 @@ The browser also refuses a larger file before reading it. The export is handed t
 
 ## Preview and confirmation
 
-`importPreview` validates the file and returns, without writing anything, the icons, every current project (id, name, icon revision, icon hash) and a proposed target for each entry:
+`importPreview` validates the file and returns, without writing anything, the icons, every current project (id, name, icon revision, icon hash, whether another plugin still manages it, variant count) and a proposed target for each entry:
 
 - An entry whose `projectId` is a current project is proposed for that project. The user may still change or clear it.
 - An entry whose id is unknown here has no target. A project with the same name is offered first in the picker and labelled **(same name)**, but is never chosen automatically; duplicate names are shown with their ids. Unmatched entries are left out unless the user picks a project.
@@ -53,9 +53,13 @@ The picker names every project; projects with the same name are shown with their
 
 ## Atomicity
 
-Validation, decoding and planning finish before the first write; any invalid file or selection changes nothing. The writes then run inside the same queue as every other icon change, in this order: revision high-water mark, each `image:<project>` value, the provenance records, and finally the index that the sidebar reads. If any write fails, every key that was written or attempted is restored to its previous value (or deleted if it did not exist) in reverse order, and the reply is `failed` with `rolledBack: true`. `rolledBack: false` means a restore itself failed, so the import may be incomplete. A failure of the realtime notification or the log after the commit does not fail the import.
+Validation, decoding and planning finish before the first write; any invalid file or selection changes nothing. Applying first runs the same orphan clean-up as `list` (data of deleted projects and variants without a default); previewing never writes. The writes then run inside the same queue as every other icon change, in this order: revision high-water mark, each `image:<project>` value, the provenance records, and finally the index that the sidebar reads. If any write fails, every key that was written or attempted is restored to its previous value (or deleted if it did not exist) in reverse order, and the reply is `failed` with `rolledBack: true`. `rolledBack: false` means a restore itself failed, so the import may be incomplete. A failure of the realtime notification or the log after the commit does not fail the import.
 
 Limits of this guarantee: BB's plugin storage has no multi-key transaction, so a plugin or server crash in the middle of the write sequence is not recovered, and the revision high-water mark is deliberately not rolled back (revisions are never reused). Because `GET /icon` serves the stored image without checking the `v=` revision, a browser that fetches an icon while a save or import is between its image and index writes can cache the new bytes under the old revision for up to an hour; this already applies to **Save** and is not changed here.
+
+## Theme variants
+
+Format version 1 carries each project's default icon only. Light and dark variants are not exported (the reply and the UI report how many were left out) and are never imported. Importing over a project's default keeps its existing variants, exactly as **Save** does, and the preview says so; a replaced default always gets a revision newer than every variant revision. Variant data left behind for a project that has no default is discarded when a default is imported, as **Save** does. Export and import of variants is tracked in #85.
 
 ## Provenance
 
