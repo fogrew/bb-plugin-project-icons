@@ -318,7 +318,7 @@ try {
   }
   scenarios.push("First/middle/last activation at 320/375/desktop reveals controls adjacent to header, retains focus and respects reduced motion");
 
-  const picker = page.locator('input[type="file"]');
+  const picker = page.locator('.bb-project-icons-editor input[type="file"]');
   const preview = page.getByAltText("Enlarged draft icon");
   const file = name => ({ name, mimeType: "image/png", buffer: image });
   await openCard(2);

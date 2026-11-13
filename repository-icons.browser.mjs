@@ -134,7 +134,7 @@ try {
   assertHalves(await savedPng(3), "repository ICO candidate (PNG entry)");
   checks.push("a repository favicon.ico whose largest entry is a PNG is previewed and saved as an upright 64 x 64 PNG");
 
-  const picker = page.locator('input[type="file"]');
+  const picker = page.locator('.bb-project-icons-editor input[type="file"]');
   assert.match(await picker.getAttribute("accept"), /\.ico/);
   await picker.setInputFiles({ name: "favicon.ico", mimeType: "image/x-icon", buffer: pngIco });
   await saveButton.waitFor();
