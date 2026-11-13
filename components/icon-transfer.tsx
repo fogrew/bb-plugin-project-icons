@@ -46,7 +46,11 @@ export function IconTransfer({ api, iconUrl, onImported }: {
   const fileInput = useRef<HTMLInputElement>(null);
   const help = useId();
   useEffect(() => () => { generation.current += 1; }, []);
-  useEffect(() => { if (refocus) fileInput.current?.focus(); }, [refocus]);
+  const wantFocus = useRef(false);
+  const requestFocus = () => { wantFocus.current = true; setRefocus(count => count + 1); };
+  useEffect(() => {
+    if (wantFocus.current && busy === null) { wantFocus.current = false; fileInput.current?.focus(); }
+  }, [refocus, busy]);
 
   const exportAll = async () => {
     const version = ++generation.current;
@@ -70,8 +74,8 @@ export function IconTransfer({ api, iconUrl, onImported }: {
       const result = await api.preview(payload);
       if (version !== generation.current) return;
       setConfirmed(false);
-      if (result.status !== "ok") { setReview(null); setNotice({ kind: "error", text: result.message }); }
-      else if (result.entries.length === 0) { setReview(null); setNotice({ kind: "error", text: "The file contains no icons." }); }
+      if (result.status !== "ok") { setReview(null); setNotice({ kind: "error", text: result.message }); requestFocus(); }
+      else if (result.entries.length === 0) { setReview(null); setNotice({ kind: "error", text: "The file contains no icons." }); requestFocus(); }
       else {
         const ids = new Set(result.projects.map(project => project.id));
         const choice = (entry: PreviewEntry) => {
@@ -81,7 +85,7 @@ export function IconTransfer({ api, iconUrl, onImported }: {
         setReview({ payload, entries: result.entries, projects: result.projects,
           choices: Object.fromEntries(result.entries.map(entry => [entry.sourceId, choice(entry)])) });
       }
-    } catch { if (version === generation.current) { setReview(null); setNotice({ kind: "error", text: "Could not check the file. Try again." }); } }
+    } catch { if (version === generation.current) { setReview(null); setNotice({ kind: "error", text: "Could not check the file. Try again." }); requestFocus(); } }
   };
 
   const choose = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -91,12 +95,12 @@ export function IconTransfer({ api, iconUrl, onImported }: {
     const version = ++generation.current;
     setNotice(null);
     setReview(null);
-    if (file.size > MAX_PAYLOAD_CHARS) { setNotice({ kind: "error", text: "That file is larger than 12 MiB." }); return; }
+    if (file.size > MAX_PAYLOAD_CHARS) { setNotice({ kind: "error", text: "That file is larger than 12 MiB." }); requestFocus(); return; }
     setBusy("Checking file…");
     try {
       const payload = await file.text();
       if (version === generation.current) await showPreview(payload, version);
-    } catch { if (version === generation.current) setNotice({ kind: "error", text: "Could not read the file." }); }
+    } catch { if (version === generation.current) { setNotice({ kind: "error", text: "Could not read the file." }); requestFocus(); } }
     finally { if (version === generation.current) setBusy(null); }
   };
 
@@ -105,7 +109,7 @@ export function IconTransfer({ api, iconUrl, onImported }: {
     setReview(null);
     setConfirmed(false);
     setNotice(null);
-    setRefocus(count => count + 1);
+    requestFocus();
   };
 
   const byId = new Map((review?.projects ?? []).map(project => [project.id, project]));
@@ -120,7 +124,12 @@ export function IconTransfer({ api, iconUrl, onImported }: {
   const chosen = rows.flatMap(row => row.target ? [row.target.id] : []);
   const clash = new Set(chosen).size !== chosen.length;
   const imports = count("add") + count("replace") + count("pin");
-  const canImport = !busy && !clash && imports > 0 && (count("replace") === 0 || confirmed);
+  const needsConfirm = count("replace") > 0 || count("pin") > 0;
+  const confirmText = [
+    count("replace") ? `Replace ${plural(count("replace"), "existing icon")}` : "",
+    count("pin") ? `${count("replace") ? "keep" : "Keep"} ${plural(count("pin"), "icon")} as manual` : "",
+  ].filter(Boolean).join(" and ");
+  const canImport = !busy && !clash && imports > 0 && (!needsConfirm || confirmed);
 
   const apply = async () => {
     if (!review || !canImport) return;
@@ -140,12 +149,12 @@ export function IconTransfer({ api, iconUrl, onImported }: {
           result.unchanged ? `${plural(result.unchanged, "icon")} already matched` : "",
         ].filter(Boolean);
         setNotice({ kind: "success", text: `Imported ${plural(result.imported, "icon")}${extra.length ? `; ${extra.join("; ")}` : ""}.` });
-        setRefocus(value => value + 1);
+        requestFocus();
         onImported();
       } else if (result.status === "failed") {
         setReview(null);
         setNotice({ kind: "error", text: result.rolledBack ? "The import failed and nothing was changed." : "The import failed and may be incomplete. Check your project icons." });
-        setRefocus(value => value + 1);
+        requestFocus();
         onImported();
       } else if (result.code === "stale") {
         setNotice({ kind: "error", text: `${result.message} The preview was refreshed.` });
@@ -153,13 +162,13 @@ export function IconTransfer({ api, iconUrl, onImported }: {
       } else {
         setReview(null);
         setNotice({ kind: "error", text: result.message });
-        setRefocus(value => value + 1);
+        requestFocus();
       }
     } catch {
       if (version !== generation.current) return;
       setReview(null);
       setNotice({ kind: "error", text: "The import did not finish. Check your project icons before trying again." });
-      setRefocus(value => value + 1);
+      requestFocus();
       onImported();
     } finally { if (version === generation.current) setBusy(null); }
   };
@@ -214,9 +223,9 @@ export function IconTransfer({ api, iconUrl, onImported }: {
         {plural(count("add"), "icon")} to add, {plural(count("replace"), "icon")} to replace, {count("pin")} to keep as manual, {count("same")} unchanged, {count("skip")} left out.
       </p>
       {clash && <p role="alert">Two icons are set to go into the same project. Change one of them.</p>}
-      {count("replace") > 0 && <label className="bb-project-icons-confirm">
+      {needsConfirm && <label className="bb-project-icons-confirm">
         <input type="checkbox" checked={confirmed} disabled={busy !== null} onChange={event => setConfirmed(event.target.checked)} />
-        Replace {plural(count("replace"), "existing icon")}
+        {confirmText}
       </label>}
       <div className="bb-project-icons-transfer-actions">
         <button type="button" disabled={!canImport} onClick={() => void apply()}>Import {plural(imports, "icon")}</button>

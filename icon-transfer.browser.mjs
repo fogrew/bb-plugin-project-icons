@@ -208,6 +208,8 @@ try {
     await pageB.getByRole("button", { name: "Export icons" }).waitFor();
     await choose(buildExport([{ projectId: D, projectName: "Beta", image: transparentPng.toString("base64") }]));
     await section.getByText("from another plugin", { exact: false }).waitFor();
+    assert.equal(await section.getByRole("button", { name: "Import 1 icon" }).isDisabled(), true);
+    await section.getByLabel("Keep 1 icon as manual").check();
     await section.getByRole("button", { name: "Import 1 icon" }).click();
     await pageB.getByText("Imported 0 icons; 1 icon kept as manual.").waitFor();
     const row = (await hosts.b.call("list", null)).projects.find(project => project.id === D);
@@ -227,6 +229,7 @@ try {
       await choose(payload);
       await pageB.getByRole("alert").filter({ hasText: message }).waitFor();
       assert.equal(await section.count(), 0);
+      await pageB.waitForFunction(() => document.activeElement?.getAttribute("type") === "file");
     }
     const calls = await pageB.evaluate(() => window.rpcCalls.length);
     await pageB.getByLabel("Import icons from a file").setInputFiles({ name: "big.json", mimeType: "application/json", buffer: Buffer.alloc(13 * 1024 * 1024, 32) });
