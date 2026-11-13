@@ -1,6 +1,10 @@
+import type { Theme } from "./lib/theme-variants";
+
+export type Target = "default" | Theme;
 export type Project = {
   id: string; name: string; revision: number | null;
   automatic?: boolean; source?: { pluginId: string; importedAt: number } | null;
+  variants?: { light: number | null; dark: number | null };
 };
 type Notice = { kind: "error" | "success"; text: string };
 type Undo = { projectId: string; token: string; expiresAt: number };
@@ -8,6 +12,7 @@ type Snapshot = {
   projects: Project[];
   automaticAdoption: boolean;
   selected: string;
+  target: Target;
   loading: boolean;
   refreshing: boolean;
   loadError: string;
@@ -17,8 +22,8 @@ type Snapshot = {
 };
 type Api = {
   list(): Promise<{ projects: Project[]; automaticAdoption?: boolean }>;
-  save(input: { projectId: string; base64: string }): Promise<unknown>;
-  remove(input: { projectId: string }): Promise<{ undo: Omit<Undo, "projectId"> | null } | void>;
+  save(input: { projectId: string; base64: string; theme?: Theme }): Promise<unknown>;
+  remove(input: { projectId: string; theme?: Theme }): Promise<{ undo: Omit<Undo, "projectId"> | null } | void>;
   restore(input: { projectId: string; token: string }): Promise<{ status: "restored" | "expired" | "conflict" }>;
 };
 
@@ -29,7 +34,7 @@ export function filterProjects(projects: Project[], query: string): Project[] {
 
 export function createSettingsState(api: Api, changed: () => void) {
   let snapshot: Snapshot = {
-    projects: [], automaticAdoption: true, selected: "", loading: true, refreshing: false,
+    projects: [], automaticAdoption: true, selected: "", target: "default", loading: true, refreshing: false,
     loadError: "", operation: null, notice: null, undo: null,
   };
   let request = 0;
@@ -62,7 +67,12 @@ export function createSettingsState(api: Api, changed: () => void) {
     if (id === snapshot.selected || !snapshot.projects.some((row) => row.id === id)) return;
     selectionVersion += 1;
     clearUndo();
-    update({ selected: id, notice: null });
+    update({ selected: id, target: "default", notice: null });
+  };
+  const setTarget = (target: Target) => {
+    if (target === snapshot.target || snapshot.operation) return;
+    if (target !== "default" && !snapshot.projects.some(row => row.id === snapshot.selected && row.revision !== null)) return;
+    update({ target, notice: null });
   };
   const refresh = async () => {
     const current = ++request;
@@ -73,10 +83,11 @@ export function createSettingsState(api: Api, changed: () => void) {
       const selected = projects.some((row) => row.id === snapshot.selected) ? snapshot.selected : projects[0]?.id ?? "";
       const selectionChanged = selected !== snapshot.selected;
       if (selectionChanged) selectionVersion += 1;
+      const target = projects.find(row => row.id === selected)?.revision === null ? "default" : snapshot.target;
       const conflict = snapshot.undo && (selected !== snapshot.undo.projectId ||
         projects.find(row => row.id === snapshot.undo?.projectId)?.revision !== null);
       if (selectionChanged || conflict) clearUndo();
-      update({ projects, automaticAdoption, selected, loading: false, refreshing: false, loadError: "",
+      update({ projects, automaticAdoption, selected, target: selectionChanged ? "default" : target, loading: false, refreshing: false, loadError: "",
         ...(selectionChanged ? { notice: null } : conflict ? {
           notice: { kind: "error", text: "Icon changed. Undo is no longer available." },
         } : {}) });
@@ -86,9 +97,11 @@ export function createSettingsState(api: Api, changed: () => void) {
       });
     }
   };
-  const mutate = async (kind: "save" | "remove", prepare?: () => Promise<string>, ownerId?: string): Promise<"success" | "failed" | "skipped"> => {
+  const mutate = async (kind: "save" | "remove", prepare?: () => Promise<string>, ownerId?: string, removeTheme?: Theme): Promise<"success" | "failed" | "skipped"> => {
     if (!snapshot.selected || snapshot.operation || (ownerId !== undefined && ownerId !== snapshot.selected)) return "skipped";
     const projectId = snapshot.selected;
+    const theme = kind === "save" ? (snapshot.target === "default" ? undefined : snapshot.target) : removeTheme;
+    const subject = theme ? `${theme[0].toUpperCase()}${theme.slice(1)} variant` : "Icon";
     const version = selectionVersion;
     const generation = lifetime;
     request += 1;
@@ -99,9 +112,9 @@ export function createSettingsState(api: Api, changed: () => void) {
         if (!prepare) throw new Error("Missing image");
         const base64 = await prepare();
         if (generation !== lifetime) return "skipped";
-        await api.save({ projectId, base64 });
+        await api.save({ projectId, base64, ...(theme ? { theme } : {}) });
       } else {
-        const result = await api.remove({ projectId });
+        const result = await api.remove({ projectId, ...(theme ? { theme } : {}) });
         if (generation === lifetime && version === selectionVersion && result?.undo) offerUndo({ projectId, ...result.undo });
       }
       // A confirmed RPC succeeded even when its editor lifetime has ended.
@@ -110,15 +123,15 @@ export function createSettingsState(api: Api, changed: () => void) {
       changed();
       void refresh();
       if (generation === lifetime && version === selectionVersion) update({
-        notice: { kind: "success", text: kind === "save" ? "Icon saved." : "Icon removed." },
+        notice: { kind: "success", text: `${subject} ${kind === "save" ? "saved." : "removed."}` },
       });
       return "success";
     } catch {
       if (generation === lifetime && kind === "remove") void refresh();
       if (generation === lifetime && version === selectionVersion) update({
         notice: { kind: "error", text: kind === "save"
-          ? "Could not save icon. Check the draft and try again."
-          : "Could not remove icon. Try again." },
+          ? `Could not save ${subject.toLowerCase()}. Check the draft and try again.`
+          : `Could not remove ${subject.toLowerCase()}. Try again.` },
       });
       return "failed";
     } finally {
@@ -159,7 +172,7 @@ export function createSettingsState(api: Api, changed: () => void) {
       listeners.add(listener);
       return () => { listeners.delete(listener); };
     },
-    select, refresh, mutate, undo,
+    select, setTarget, refresh, mutate, undo,
     cancel: () => { request += 1; selectionVersion += 1; lifetime += 1; clearUndo(); update({ operation: null }); },
   };
 }

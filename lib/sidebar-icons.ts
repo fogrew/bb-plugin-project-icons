@@ -1,11 +1,32 @@
 import { automaticIcon } from "./automatic-icon";
 import { HINT_REFRESH_MS, hints } from "./hints-store";
+import { readThemeMode, watchThemeMode } from "./theme-mode";
+import { THEMES, pickIcon, type Theme, type VariantMap } from "./theme-variants";
 
 const base = "/api/v1/plugins/project-icons/http";
-const iconUrl = (id: string, revision: number) => `${base}/icon?projectId=${encodeURIComponent(id)}&v=${revision}`;
+const iconUrl = (id: string, revision: number, theme: Theme | null) =>
+  `${base}/icon?projectId=${encodeURIComponent(id)}${theme ? `&theme=${theme}` : ""}&v=${revision}`;
+const PROJECT_ID = /^proj_[a-z0-9]{10,32}$/;
+
+export function parseVariantResponse(data: unknown): VariantMap | null {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return null;
+  const parsed: VariantMap = {};
+  for (const [id, entry] of Object.entries(data)) {
+    if (!PROJECT_ID.test(id) || !entry || typeof entry !== "object" || Array.isArray(entry)) continue;
+    const own: VariantMap[string] = {};
+    for (const theme of THEMES) {
+      const revision = Object.hasOwn(entry, theme) ? (entry as Record<string, unknown>)[theme] : undefined;
+      if (typeof revision === "number" && Number.isSafeInteger(revision) && revision > 0) own[theme] = revision;
+    }
+    if (Object.keys(own).length) parsed[id] = own;
+  }
+  return parsed;
+}
 
 export function mountIcons(signal: AbortSignal): () => void {
   let icons: Record<string, number> = {};
+  let variants: VariantMap = {};
+  let mode: Theme = readThemeMode();
   let scheduled = false;
   let disposed = false;
   const fallbacks = new Map<string, { name: string; color: string | null; url: string }>();
@@ -16,7 +37,8 @@ export function mountIcons(signal: AbortSignal): () => void {
       const id = row.dataset.sidebarProjectId ?? "";
       const title = row.querySelector<HTMLElement>(':scope [data-sidebar="group-label"] > span:first-child > span[title]');
       const existing = row.querySelector<HTMLImageElement>(".bb-project-icons-image");
-      const revision = icons[id];
+      const picked = pickIcon(mode, icons[id], variants[id]);
+      const revision = picked?.revision;
       if (!title || !/^proj_[a-z0-9]{10,32}$/.test(id)) {
         existing?.remove();
         row.classList.remove("bb-project-icons-row");
@@ -30,7 +52,7 @@ export function mountIcons(signal: AbortSignal): () => void {
         fallback = { name, color, url: automaticIcon(id, name, color) };
         fallbacks.set(id, fallback);
       }
-      const url = revision !== undefined ? iconUrl(id, revision) : fallback!.url;
+      const url = picked ? iconUrl(id, picked.revision, picked.theme) : fallback!.url;
       if (existing && existing.src !== new URL(url, location.href).href) existing.src = url;
       if (!existing) {
         const image = document.createElement("img");
@@ -63,12 +85,17 @@ export function mountIcons(signal: AbortSignal): () => void {
   const refresh = async () => {
     const current = ++request;
     try {
-      const response = await fetch(`${base}/icons`, { credentials: "same-origin", cache: "no-store", signal });
+      const [response, variantResponse] = await Promise.all([
+        fetch(`${base}/icons`, { credentials: "same-origin", cache: "no-store", signal }),
+        fetch(`${base}/icon-variants`, { credentials: "same-origin", cache: "no-store", signal }).catch(() => null),
+      ]);
       if (!response.ok) return;
       const data: unknown = await response.json();
       if (!data || typeof data !== "object" || Array.isArray(data)) return;
+      const nextVariants = variantResponse?.ok ? parseVariantResponse(await variantResponse.json().catch(() => null)) : null;
       if (disposed || signal.aborted || current !== request) return;
-      icons = Object.fromEntries(Object.entries(data).filter(([id, revision]) => /^proj_[a-z0-9]{10,32}$/.test(id) && typeof revision === "number")) as Record<string, number>;
+      icons = Object.fromEntries(Object.entries(data).filter(([id, revision]) => PROJECT_ID.test(id) && typeof revision === "number")) as Record<string, number>;
+      variants = nextVariants ?? {};
       schedule();
     } catch (cause) { if (!signal.aborted) console.warn("Project Icons refresh failed", cause); }
   };
@@ -77,6 +104,7 @@ export function mountIcons(signal: AbortSignal): () => void {
   };
   const onFocus = () => { void refresh(); refreshHints(); };
   const unsubscribe = hints.subscribe(schedule);
+  const stopThemeWatch = watchThemeMode(next => { mode = next; schedule(); });
   const hintTimer = setInterval(refreshHints, HINT_REFRESH_MS);
   window.addEventListener("focus", onFocus);
   window.addEventListener("bb-project-icons-changed", onFocus);
@@ -89,6 +117,7 @@ export function mountIcons(signal: AbortSignal): () => void {
     fallbacks.clear();
     observer.disconnect();
     unsubscribe();
+    stopThemeWatch();
     clearInterval(hintTimer);
     window.removeEventListener("focus", onFocus);
     window.removeEventListener("bb-project-icons-changed", onFocus);
