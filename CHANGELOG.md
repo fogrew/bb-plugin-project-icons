@@ -8,6 +8,15 @@ with the explicit pre-1.0 policy in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Unreleased
 
+### Added
+
+- Optional light and dark icon variants per project. The icon you already have stays the default for every theme; a variant replaces it only while BB uses that theme, and the sidebar follows a theme switch live without a reload. Variants are added from the editor's **Light and dark variants (optional)** section (the draft preview sits on a light or dark surface), need a default icon first, can be removed individually, and are removed with the default (Undo restores them). `resolveIcon` (contract version 1) now honours its optional `theme` input and may report `found.theme` as `light` or `dark`; calls without `theme` are unchanged. See [Theme variants](docs/theme-variants.md).
+
+### Changed
+
+- **Stored-data format (additive, no migration needed).** New storage keys `variants` and `image:<projectId>:light|dark`; `index`, `image:<projectId>` and every existing single icon are unchanged and stay valid, and an older version ignores the new keys. New RPC fields (`list` rows carry `variants`; `save`, `remove` and `removeWithUndo` accept `theme`) and routes (`GET /icon-variants`, `GET /icon?theme=`) are optional additions.
+- Project Icons no longer hides the Project Colors dot on headings that show an image. The old rule was unconditional and removed the colour picker; the dot, palette, tint and title colour now stay as Project Colors draws them. Project Colors exposes no public contract (browser storage and DOM only), so its colours are not used as an icon background or outline.
+
 ## 0.4.0 - 2026-11-13
 
 ### Changed
