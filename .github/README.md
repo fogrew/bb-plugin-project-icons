@@ -30,7 +30,7 @@ Work branches use
 `feature|fix|chore|ci|docs|test|refactor|hotfix/<issue>-<lowercase-kebab-slug>`.
 Issue numbers are positive without leading zeros. Release branches use
 `release/X.Y.Z` without a `v` prefix. `main` and `develop` are allowed as
-integration/return PR heads.
+integration/back-merge PR heads.
 
 Non-merge commits must have a Conventional Commits subject:
 `type(scope): description`, with optional scope and `!`.
@@ -51,8 +51,8 @@ cryptographic validity.
 Every real commit and merge still requires local GPG signing and successful
 `git verify-commit <sha>` before pushing. Preserve signed history; use additive
 commits, no amend/rebase/force-push. The contribution policy separately permits
-GitHub squash integration after its acceptance, dependency, independent-review
-and check gates pass. That final commit has GitHub's distinct GPG signature;
+GitHub merge-commit integration after its acceptance, dependency, independent-review
+and check gates pass. That merge commit has GitHub's distinct GPG signature;
 verify it against the published GitHub signing key and record the actual signer.
 CI's envelope check does not establish those integration gates or authorize a
 merge, publishing or repository-setting changes.

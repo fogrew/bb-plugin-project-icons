@@ -9,7 +9,7 @@ Flow, Conventional Commits, changelog/version policy and the handoff template.
 - One issue, one focused BB session, one assigned managed worktree, one branch
   and one reviewable PR. Do not touch another session's branches or worktrees.
 - Start ordinary independent work at current `origin/develop` and target `develop`.
-  Follow CONTRIBUTING for release/hotfix bases and return PRs.
+  Follow CONTRIBUTING for release/hotfix bases and back-merge PRs.
 - The coordinator has ongoing authorization; no per-issue kickoff approval is
   required. Independent development may proceed in parallel isolated worktrees.
 - Real code dependencies may use clearly disclosed stacked branches/PRs. Name
@@ -59,17 +59,18 @@ content or audiences; record their scope without extending them to other content
 - Require independent reviews by risk: untrusted input, three; other code, one;
   docs/config, zero. Fix findings or file follow-ups; resolve blocking findings
   before acceptance. File out-of-scope discoveries instead of scope drift.
-- Use `gh pr merge <PR> --squash --match-head-commit <validated-head-SHA>` only
-  after all gates pass. Verified GitHub squash integration is permitted;
-  source commits retain personal GPG signatures, while GitHub signs the squash
-  with its own distinct GPG key. Immediately verify the result's GPG signature
-  and verification status, recording immutable SHA and actual signer/fingerprint.
-  If verification fails or is unavailable, stop further merges and report it.
-  No unsigned fallback, signing-setting changes or source history rewrites.
-  See CONTRIBUTING for authoritative sources and verification details.
+- Use `gh pr merge <PR> --merge --match-head-commit <validated-head-SHA>` only
+  after all gates pass. Verified GitHub merge-commit integration is permitted;
+  source commits retain personal GPG signatures and stay in history, while
+  GitHub signs the merge commit with its own distinct GPG key. Squash and
+  rebase are not used (classic Git Flow). Immediately verify the result's GPG
+  signature and verification status, recording immutable SHA and actual
+  signer/fingerprint. If verification fails or is unavailable, stop further
+  merges and report it. No unsigned fallback, signing-setting changes or source
+  history rewrites. See CONTRIBUTING for authoritative sources and details.
 - Never write directly to or merge locally into protected branches. The owner
   handles releases, tags, publishing, marketplace submission and repo settings.
-  Release/hotfix integration and return PRs are outside ordinary autonomous
+  Release/hotfix integration and back-merge PRs are outside ordinary autonomous
   merge authorization. See CONTRIBUTING for the full merge gates.
 
 ## Checks and completion
