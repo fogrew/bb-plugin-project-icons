@@ -10,3 +10,5 @@ Open **Settings → Installed plugins → Project Icons**. Choose a project, upl
 The plugin stores one resized 64 × 64 PNG per project in BB's plugin storage. Source files must be under 2 MB. It does not read arbitrary local files on the server or support SVG. No CLI command is registered.
 
 Settings offers **Undo removal** for up to 15 seconds, only while that exact deletion is current. Newer changes, capacity eviction or server/plugin reload can invalidate it earlier. Switching projects dismisses the local offer. Removed bytes are retained only in bounded backend memory, with no durable recovery. See [the Undo contract](../../docs/removal-undo.md) for RPC, retention, failure and verification boundaries.
+
+Settings also offers **Export and import**: export writes a versioned `project-icons.json` with only each icon's project id, name and PNG; import shows a preview of the target project and any replacement, matches projects by id only (same-name projects are suggested, never chosen automatically), asks for confirmation before replacing and rolls back a failed import as a whole. See [the format and safety contract](../../docs/icon-transfer.md).

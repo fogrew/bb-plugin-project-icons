@@ -10,6 +10,7 @@ import { PngPreview } from "./components/icon-preview";
 import { RemovalControls } from "./components/removal-controls";
 import { AdoptionStatus, AutomaticToggle } from "./components/adoption-controls";
 import { AutoAdopt, SCAN_EVENT } from "./components/auto-adopt";
+import { IconTransfer, type TransferApi } from "./components/icon-transfer";
 import { fetchPeerImage } from "./lib/peer-image";
 import "./app.css";
 import { version } from "./package.json";
@@ -54,6 +55,11 @@ function Settings({ projectId }: { projectId?: string } = {}) {
   const peerArtwork = useMemo(() => ({
     probe: (id: string) => rpc.call("peerArtwork", { projectId: id, peer: "homepage" }),
     fetchImage: fetchPeerImage,
+  }), [rpc]);
+  const transfer = useMemo<TransferApi>(() => ({
+    exportIcons: () => rpc.call("exportIcons"),
+    preview: payload => rpc.call("importPreview", { payload }),
+    apply: (payload, decisions) => rpc.call("importApply", { payload, decisions }),
   }), [rpc]);
   const editor = project && <fieldset className="bb-project-icons-editor">
       <legend>Icon for {project.name}</legend>

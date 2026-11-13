@@ -115,6 +115,10 @@ Plugins that replace BB's sidebar thread list (for example Cursor Sidebar, Nest,
 
 BB has no extension slot for its native project menu, so the editor cannot be added there. Open it from **Edit project icon** in the thread actions menu, the thread header action or the Homepage project section, or from Settings.
 
+## Export and import
+
+Settings → Project icons → **Export and import** saves every project icon to `project-icons.json` and restores icons from such a file on this or another server. The file holds only a format version and, per icon, the project id, project name and the 64 × 64 PNG; no paths, credentials or settings. Choosing a file shows a preview of every icon, the project it would go into and whether it adds, replaces or repeats an icon. Projects are matched by id only: on another server, whose ids differ, nothing is mapped until you pick a project (same-name projects are suggested, never chosen for you). Replacing an existing icon needs an explicit confirmation, Cancel changes nothing, and a failed import is rolled back as a whole. Imported icons are manual, so automatic adoption never overwrites them. Files are limited to 12 MiB and 500 icons. See [the format and safety contract](docs/icon-transfer.md).
+
 ## Preview and host notes
 
 Use the current or enlarged draft PNG button to inspect it in a modal preview. Close preview or Escape returns to the editor without saving or cancelling its draft. The checkerboard shows transparency; the close control stays above the image. See [preview validation and host limitations](docs/png-preview.md).
@@ -150,6 +154,8 @@ keyboard focus, pointer drag, Fill, and exact preview/save PNG bytes after an
 injected encoding failure. Results are written under ignored
 `dist/crop-labels-browser/`. SDK/RPC and theme tokens are fixtures; installed BB
 integration and OS input are untested. This harness is separate from default CI.
+
+For focused export/import checks, build first, then run `node --test icon-transfer.test.mjs icon-transfer-server.test.mjs`. Both are included in `npm run check` and CI: the first covers the file format and hostile input, the second runs the real server code on the SDK's fake host (two-server round trip, duplicate names, stale revisions, rollback after an injected failure at every write). The optional `node icon-transfer.browser.mjs` harness uses the temporary browser tooling below, drives the real component against the real server code over a local HTTP bridge in headless Chrome at 1024 and 320 px in light and dark, and writes results and screenshots under ignored `dist/icon-transfer-browser/`. The SDK host, RPC transport and theme tokens are fixtures; installed-BB behaviour and native file dialogs are untested.
 
 For the optional finite component/browser harness, install temporary tooling with `npm install --no-save --package-lock=false --ignore-scripts react@19 react-dom@19 playwright-core`, run `npm run build`, then run `node image-input.browser.mjs`. It launches and closes headless Chrome, uses a local file fixture without a server, and writes results and a 320 px screenshot under ignored `dist/image-input-browser/`. Set `CHROME_PATH` if Chrome is elsewhere. The harness uses real React, DOM focus, PNG decoding and canvas rendering, with synthetic drop/paste events and fake RPC responses. It does not install/reload the plugin or establish live-BB, native file-dialog or OS clipboard evidence. This optional harness is separate from the default CI suite; package manifests remain unchanged by the temporary tooling install.
 
