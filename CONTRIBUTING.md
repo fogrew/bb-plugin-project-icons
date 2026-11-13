@@ -24,7 +24,7 @@ other public content.
 | Branch | Start from | PR base and return path |
 | --- | --- | --- |
 | `main` | Released history | Receives approved release and hotfix PRs |
-| `develop` | Integration history | Accepted work and return PRs |
+| `develop` | Integration history | Accepted work and back-merge PRs |
 | `feature/<issue>-<slug>` | Latest `origin/develop` | `develop` |
 | `fix/<issue>-<slug>` | Latest `origin/develop` | `develop` |
 | `chore/<issue>-<slug>` | Latest `origin/develop` | `develop` |
@@ -32,11 +32,17 @@ other public content.
 | `docs/<issue>-<slug>` | Latest `origin/develop` | `develop` |
 | `test/<issue>-<slug>` | Latest `origin/develop` | `develop` |
 | `refactor/<issue>-<slug>` | Latest `origin/develop` | `develop` |
-| `release/<version>` | `origin/develop` | `main`, then return PR |
-| `hotfix/<issue>-<slug>` | `origin/main` | `main`, then return PR |
+| `release/<version>` | `origin/develop` | `main`, then merged back into `develop` |
+| `hotfix/<issue>-<slug>` | `origin/main` | `main`, then merged back into `develop` |
 
-After release or hotfix integration into `main`, synchronize the release
-changes or hotfix back into `develop` through a separate return PR.
+This repository follows classic Git Flow. Every PR is integrated with a merge
+commit (`--no-ff`), so each branch's commits stay in history and can be reverted
+as a unit; squash and rebase are not used. A release or hotfix branch is merged
+into `main` by PR, the owner tags the resulting `main` commit, and the same
+branch is then merged back into `develop` through a back-merge PR so that
+`main` is always an ancestor of `develop`. History written before this policy
+(squash commits) is not rewritten; `release/0.4.0` carries one `-s ours` merge
+that connects it.
 
 Use a numeric issue and lowercase kebab-case slug, for example
 `chore/1-workflow-conventions`; release versions omit the tag's `v` prefix,
@@ -76,26 +82,27 @@ ordinary PR into `develop` without per-PR owner approval only when:
 - The merge method satisfies the mandatory valid GPG-signature requirement for
   every resulting commit as well as the global workflow constraints below.
 
-Use `gh pr merge <PR> --squash --match-head-commit <validated-head-SHA>` after
-all gates pass. This repository explicitly permits verified GitHub squash
-integration: source commits require the user's personal GPG signatures; GitHub
-signs the final squash commit with its own distinct GPG key, not the user's key.
-This narrows the global signing file's blanket warning; rebase is not permitted.
+Use `gh pr merge <PR> --merge --match-head-commit <validated-head-SHA>` after
+all gates pass. This repository explicitly permits verified GitHub merge-commit
+integration: source commits require the user's personal GPG signatures and stay
+in history; GitHub signs the merge commit with its own distinct GPG key, not the
+user's key. This narrows the global signing file's blanket warning; squash and
+rebase are not permitted.
 See GitHub's [signed-commit merge rules](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches#require-signed-commits)
 and [signature verification documentation](https://docs.github.com/en/authentication/managing-commit-signature-verification/about-commit-signature-verification).
 
-Immediately retrieve the resulting commit's verification and signature; require
+Immediately retrieve the resulting merge commit's verification and signature; require
 valid GPG verification and record its immutable SHA and actual signer/fingerprint.
 Verify the signature against GitHub's published signing key, not merely a PR
 success message. If verification fails or cannot be established, stop further
 merges and report the concrete failure. Never fall back to unsigned commits,
 local merges into protected branches or direct protected-branch pushes.
-Do not change signing settings. Squash integration does not permit rewriting
-source branch history.
+Do not change signing settings. Merge-commit integration does not permit
+rewriting source branch history.
 
 Do not enable auto-merge. Releases, tags, publishing, marketplace submission and
 repository settings are handled by the owner. Release/hotfix integration and
-return PRs are outside ordinary autonomous merge authorization.
+back-merge PRs are outside ordinary autonomous merge authorization.
 
 ## Commits and signatures
 

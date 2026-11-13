@@ -8,6 +8,32 @@ with the explicit pre-1.0 policy in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Unreleased
 
+## 0.4.0 - 2026-11-13
+
+### Changed
+
+- Removing an icon now resets the project to automatic: the next scan can adopt peer artwork again (for example from Homepage). Turn off **Use artwork from installed plugins automatically** in Settings to keep a removed icon empty.
+- Every call to another plugin goes through one guard: the plugin must be installed, enabled and running at a known version, a method BB reports as unknown is treated as an absent peer and not asked again for that version for 30 minutes, calls time out after 5 seconds, and replies are shape-checked field by field, read by own properties only and size-limited. A plugin that changes state is probed again, and any failure degrades silently to an absent peer.
+- `resolveIcon` results for an auto-adopted icon carry an optional `adoptedFrom` plugin id (contract version 1 is otherwise unchanged), and images imported from Homepage are bounded by decoded dimensions (4096 px per side).
+- Projects whose icon was removed before this version have no provenance record and become eligible for automatic adoption; turn off **Use artwork from installed plugins automatically** in Settings to keep them without an icon.
+- Repository icon discovery recognizes `app-icon`, `apple-touch-icon`, `android-chrome-*`, `ic_launcher`, size-only names in icon directories (`src-tauri/icons`, `mipmap-*`, `*.appiconset`) and `build/icon.png`, ranks larger square sizes and higher Android densities first, and runs three more host queries (`apple-touch`, `android-chrome`, `ic_launcher`). Safety limits are unchanged; `.claude`, `bin` and `obj` are now skipped.
+
+### Fixed
+
+- The contextual editor dialog is centered with explicit positioning, fits 320 px viewports, and its close button and chrome use host theme tokens outside the Settings page. Clicking the backdrop now closes it, and the browser fixture runs under a host-like CSS reset. Live BB verification is pending.
+
+### Added
+
+- Automatic adoption from two more plugins, after the existing ones in priority order: BB Sidebar (an icon its user uploaded or chose from a project file; the browser fetches its icon route and the project's environment is looked up through BB) and Threadspace (an emoji its user chose, drawn locally; its default folder emoji is never imported). A project BB Sidebar cannot resolve is skipped and keeps lower-priority plugins waiting. Their RPCs are undocumented; see the README risk table ([docs](docs/artwork-interoperability.md)).
+- Automatic initials take their background colour from Project Themes, or from Threadspace when Project Themes has none, with the existing black or white lettering keeping at least 4.5:1 contrast. Colours are hints: never stored, never replace a saved icon, controlled by the automatic icons toggle, and refreshed on focus and about once a minute. A failed read keeps the last colours instead of clearing them, and a failing Project Themes holds Threadspace's colours back until it recovers.
+- ICO support: `.ico` files are suggested by **Find icons in repository** and accepted by choose, drop and paste. The header, directory, entry bounds, 64-entry and 2 MB limits are validated strictly on the host and again in the browser, the largest valid PNG or BMP entry is decoded by the browser and exported as the usual 64 x 64 PNG, and `favicon.ico` is ranked alongside PNG candidates. A file named `.ico` may also hold PNG, JPEG or WebP data and is then handled as that format, while ICO data under any other name (including pasted clipboard images) is refused. BMP entries that are 16-bit, RLE-compressed, bitfield or use a V4/V5 header are skipped and the next-largest entry is tried. SVG stays rejected and Homepage and other plugin artwork is unchanged ([docs](docs/repository-discovery.md#ico-files)). Verified in headless Chrome with mocked SDK and RPC; live BB verification is pending.
+- Automatic adoption of artwork from installed Homepage, Cursor Sidebar, Nest and Chat Sidebar plugins for projects without an icon, refreshed while the icon is still auto-imported and the same plugin's artwork changes. Saving or removing an icon marks the project manual for good; Settings shows each project's source, a global on/off toggle, and **Re-enable automatic icons** in the editor. Peer replies are version-checked, bounded and re-rendered to 64 x 64 PNGs; the peer RPCs are undocumented and found in source ([docs](docs/artwork-interoperability.md)).
+- README Compatibility section covering coexisting plugins, the Project Colors dot interaction, plugins that replace the thread list, and where the editor is reachable.
+- Edit project icons from the homepage, thread actions menu and open thread header in a shared contextual editor.
+- Suggest favicon, icon and logo images from the project repository on an explicit action; preview and Save remain manual. SVG is rejected.
+- Versioned, bounded read-only `resolveIcon` RPC so other plugins can read a project's manual icon, with an executable consumer example, revision revalidation and a capability matrix ([docs](docs/artwork-interoperability.md)). No peer plugin consumes it yet.
+- Optional **Use Homepage artwork** action that previews Homepage 0.2.7+ image artwork as a snapshot and saves only on explicit Save; absent, disabled or incompatible Homepage, timeouts, unsafe or oversized images and project switches are handled without changing the current icon.
+
 ## 0.3.0 - 2026-11-02
 
 ### Added

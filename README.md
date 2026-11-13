@@ -20,7 +20,7 @@ Search by project name or project ID to narrow the collection, with visible resu
 
 Tab follows the headers and open editor controls in DOM order. Arrow keys follow the visible header rows and columns without selecting or opening; Home/End focus the first/last header. Editor controls keep their native keyboard behavior. Arrow Down from search focuses the first result. Filtering retains the selected project while it still exists. If its editor is open and its header does not match the search, that header remains after the results with an explicit explanation and the same editor. The result count excludes this retained header; even a no-match search keeps its draft and Undo available alongside Clear search.
 
-Choose a PNG, JPEG, or WebP image to open a draft. **Fit** keeps the whole image visible; **Fill** covers the square and crops the edges. Adjust zoom and X/Y offsets with the sliders (Tab to focus, arrow keys to adjust). Check the enlarged preview and actual 20 px sample beside the project name, then choose **Save**. **Cancel** preserves the existing icon. Switching projects cancels the draft and pending image results. An in-progress browser decode may still finish; its result is discarded and closed. Failed saves preserve the previous icon and allow retrying. Choose **Remove icon** to restore that project's automatic initials. Loading, empty results and failures have explicit messages; failed project refreshes can be retried.
+Choose a PNG, JPEG, WebP, or ICO image to open a draft (for an ICO, the largest valid entry is used). **Fit** keeps the whole image visible; **Fill** covers the square and crops the edges. Adjust zoom and X/Y offsets with the sliders (Tab to focus, arrow keys to adjust). Check the enlarged preview and actual 20 px sample beside the project name, then choose **Save**. **Cancel** preserves the existing icon. Switching projects cancels the draft and pending image results. An in-progress browser decode may still finish; its result is discarded and closed. Failed saves preserve the previous icon and allow retrying. Choose **Remove icon** to reset the project to automatic: peer artwork is adopted again when available, otherwise automatic initials are shown. Loading, empty results and failures have explicit messages; failed project refreshes can be retried.
 
 Offset ranges follow the scaled image dimensions and zoom, so both source edges remain reachable. Changing Fit/Fill or zoom clamps offsets to the new range; choosing another image resets the draft to centered Fit.
 
@@ -44,7 +44,78 @@ Recent emoji contain at most 12 known catalog IDs, recorded only after a confirm
 
 All sources retain normalized PNG storage. The accepted server validates PNG structure, CRC and decoded pixels independently; see [PNG validation](docs/png-validation.md). Existing assignments remain compatible.
 
+## Plugin interoperability
+
+Other plugins can read a project's stored icon through the versioned read-only `resolveIcon` RPC. In the other direction, Project Icons can use artwork that other installed plugins already have for a project:
+
+- **Automatic adoption.** A project that has no icon takes artwork from the first installed supported plugin (Homepage, Cursor Sidebar, Nest, Chat Sidebar, BB Sidebar, Threadspace, in that order). BB Sidebar contributes only an icon its user chose (an upload or a project file), not the favicon it discovers; Threadspace contributes only an emoji its user chose, never its default folder. While an icon is still auto-imported, it is replaced when that same plugin's artwork changes. The editor and Settings show the source ("From Cursor Sidebar, imported ..."). Turn it off for every project with **Use artwork from installed plugins automatically** in Settings.
+- **Manual choices win.** Saving or removing an icon marks that project manual for good; automatic adoption never touches it again. Icons that existed before this feature count as manual. Undoing a removal leaves the project manual too. A project whose icon was removed before this version was installed has no record, so it is treated as new and can receive peer artwork; turn the toggle off first if you do not want that. To opt a project back in, remove its icon and choose **Re-enable automatic icons** in the editor.
+- **One source per project.** A project adopted from one plugin is refreshed only from that plugin and is never offered another plugin's icon, not even one from a higher-priority plugin that appears later.
+- **Needs an open BB window.** Images are decoded in the browser with the same 64 x 64 PNG pipeline as manual imports, and Homepage images need the browser session. A scan runs shortly after BB loads, every 10 minutes while the tab is visible, and when you change these settings; it is rate limited and never blocks the UI.
+- **Colour hints.** Projects that still show automatic initials use the colour from Project Themes (or, failing that, Threadspace) as the initials background, keeping at least 4.5:1 contrast for the lettering. Hints are never stored, never replace a saved icon, and follow the same Settings toggle. They refresh when BB regains focus and about once a minute while it is visible. When the hints cannot be read, BB keeps showing the last colours it had; only a successful answer replaces them.
+- **Explicit snapshot.** **Use Homepage artwork** in the image editor still previews Homepage artwork and saves it only on Save.
+
+See [Plugin artwork interoperability](docs/artwork-interoperability.md) for the contract, precedence, limits and evidence boundaries, and [Compatibility](#compatibility) for the plugins involved. No peer plugin consumes Project Icons today.
+
 ## Compatibility
+
+This section comes from reading each plugin's source at the versions named below and from read-only RPC calls on one machine. It was not verified with those plugins running next to Project Icons in a live BB, except where stated.
+
+### Peer RPCs are undocumented
+
+BB publishes no project-icon interface. The method names and reply shapes Project Icons reads from other plugins were found in their source code; they are not published contracts, and a new release of any of those plugins (or of BB's experimental plugin SDK) can change them. Project Icons checks the peer's installed version, validates every reply, bounds and sniffs every image (PNG, JPEG or WebP only, at most 256 KiB inline or 2 MB over HTTP, at most 4096 px per side), ignores a reply larger than 12 MB, and ignores a peer that does not match. Every call goes through one guard: the plugin must be installed, enabled and running at a known version; the method is probed by calling it (BB lists only the RPC methods a plugin marks discoverable, and none of these peers does), a method BB reports as unknown is remembered as missing for that peer version for 30 minutes (one minute when seen right after the plugin changed state), and is probed again when the plugin's version, enabled flag or status changes; each call has a 5 second timeout; and every field of the reply is checked for its type before use, only own properties of peer objects are read (never `__proto__`, `constructor` or similar keys), and a missing, null or wrongly typed field drops that one entry. Any failure degrades silently to "peer absent" without touching the sidebar. A change therefore stops adoption from that plugin without affecting the sidebar. If a higher-priority plugin is installed but fails, times out or is not running, the projects it would serve wait for the next scan instead of taking artwork from a lower-priority plugin; a disabled or too-old plugin is simply skipped. A failing image is not retried for 30 minutes unless the peer's value changes.
+
+### Artwork Project Icons consumes
+
+| Plugin (id) | Version checked | What is read |
+| --- | --- | --- |
+| Homepage (`homepage`) | 0.2.7+ | `getProjectArtwork` says an image exists; the browser fetches `/project-icon` with its own session (at most 2 MB) |
+| Cursor Sidebar (`cursor-sidebar`) | 0.3.5+ | `listProjectIcons`: PNG, JPEG or WebP data URLs of at most 256 KiB; glyph, emoji and monogram values are ignored |
+| Nest (`nested-sidebar`) | 0.5.0+ | `listProjectIcons`: favicon data URLs; SVG and ICO are ignored |
+| Chat Sidebar (`chat-sidebar`) | 0.2.8+ | `images_get`: `project:<id>` entries |
+| BB Sidebar (`bb-sidebar`) | 0.3.9+ | `listProjectIconSettings` says a project has a chosen upload or file path; the browser then fetches `/project-icon` with its own session (at most 2 MB; SVG and ICO are rejected: such a path icon is skipped and retried after 30 minutes, and never falls through to a lower-priority plugin's icon). An environment is looked up through BB for path icons and left out when none matches, so BB Sidebar uses the project's default host |
+| Threadspace (`threadspace`) | 0.2.2+ | `appearance_get`: a chosen emoji, drawn locally to a transparent 64 x 64 PNG; its default folder emoji, a cleared emoji and anything that is not one emoji are ignored |
+
+### Colour hints Project Icons consumes
+
+| Plugin (id) | Version checked | What is read |
+| --- | --- | --- |
+| Project Themes (`project-themes`) | 0.1.0+ | `list`: the `#rrggbb` colour of a project whose theme has at least one surface switched on |
+| Threadspace (`threadspace`) | 0.2.2+ | `appearance_get`: the colour name, mapped to a fixed palette; `default` and unknown names are ignored |
+
+### Undocumented RPC risk per peer
+
+None of these methods is a published contract. Each row names what was read at which source revision and what happens if the peer changes it.
+
+| Peer | Call (source) | If it changes |
+| --- | --- | --- |
+| Homepage 0.2.7 | `getProjectArtwork`, route `/project-icon` ([server.ts](https://github.com/yusuf8834/bb-homepage/blob/26ce35049407/server.ts)) | No adoption from Homepage until the shape matches again |
+| Cursor Sidebar 0.3.5 | `listProjectIcons` ([src/server.ts](https://github.com/wy3z/bb-cursor-suite/blob/16f5a896fee8/plugins/cursor-sidebar/src/server.ts)) | Same |
+| Nest 0.5.0 | `listProjectIcons` ([contract.ts](https://github.com/euanguo/euanguo-plugins/blob/8251228eab48/plugins/nested-sidebar/server/contract.ts)) | Same |
+| Chat Sidebar 0.2.8 | `images_get`, marked experimental by its author ([lib/rpc.ts](https://github.com/seoperin/bb-plugin-chat-sidebar/blob/902ec817ea47/lib/rpc.ts)) | Same |
+| BB Sidebar 0.3.9 | `listProjectIconSettings` ([contract.ts](https://github.com/yusuf8834/bb-sidebar/blob/1741aa6ec97e/src/contract.ts)) and route `/project-icon` ([server.ts](https://github.com/yusuf8834/bb-sidebar/blob/1741aa6ec97e/src/server.ts)); its `environmentId` query parameter is optional and defaults to the project's default host ([server-project-icons.ts](https://github.com/yusuf8834/bb-sidebar/blob/1741aa6ec97e/src/server-project-icons.ts)) | No adoption from BB Sidebar. A project whose environment lookup fails is skipped and keeps waiting rather than taking a lower-priority icon |
+| Threadspace 0.2.2 | `appearance_get` ([server.ts](https://github.com/KosachMax/threadspace/blob/20b53ff8194b/server.ts)); its default `{ emoji: "📁", color: "default" }` ([preferences.ts](https://github.com/KosachMax/threadspace/blob/20b53ff8194b/src/preferences.ts)) | No emoji icon and no colour hint. A changed default would import that default once, because a default cannot be told from a choice |
+| Project Themes 0.1.0 | `list` ([server.ts](https://github.com/lumenikoly/useful-bb-plugins/blob/ca95d1932e80/plugins/project-themes/src/server.ts)) | Initials keep their palette colour |
+
+BB's plugin SDK only lets an app subscribe to its own realtime channels, so Project Themes' `themes-changed` and Threadspace's `appearance-changed` events are not received. Hints are re-read on focus and about once a minute, and the server reuses an answer for 20 seconds.
+
+Not consumed: Dockside, Compact UI, Nest and Chat Sidebar colours or hues, BB Sidebar colours, and Chat Tabs (a settings string). Project Colors keeps its colours in browser `localStorage` and is never read.
+
+### Plugins that coexist
+
+Simple Sidebar Folders, Project Page, Thread Hover Cards, Sessions Switcher, Chat Tabs and Project Themes work next to Project Icons: they act on other elements (folder order, title links, row tints, tabs) or show no project visuals. Project Themes' colour is additionally read as a hint for automatic initials. Compact UI and Pane Workspaces colour the project label beside our image. Homepage shows its own artwork on the homepage only.
+
+**Project Colors:** on any project heading that shows our image, Project Icons hides the Project Colors dot and its palette, so two icons are not shown. Row tint and title colour stay, and the palette remains available from the thread header action. You lose the sidebar colour picker while an icon is shown.
+
+### Plugins that replace the thread list
+
+Plugins that replace BB's sidebar thread list (for example Cursor Sidebar, Nest, BB Sidebar, Chat Sidebar, Threadspace, Dockside, Ultra Sidebar and Tinted Threads) draw their own rows. Project Icons only decorates BB's native project headings, so while one of them is active our images may not appear in its list. Ultra Sidebar draws its own heading and favicon, so the two icon systems do not overlap. Tinted Threads likely reuses the native heading markup, which was not verified live. Adoption can still copy those plugins' artwork into Project Icons. Minus can hide a whole project group, including its image.
+
+### Where the editor is reachable
+
+BB has no extension slot for its native project menu, so the editor cannot be added there. Open it from **Edit project icon** in the thread actions menu, the thread header action or the Homepage project section, or from Settings.
+
+## Preview and host notes
 
 Use the current or enlarged draft PNG button to inspect it in a modal preview. Close preview or Escape returns to the editor without saving or cancelling its draft. The checkerboard shows transparency; the close control stays above the image. See [preview validation and host limitations](docs/png-preview.md).
 

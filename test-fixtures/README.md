@@ -22,3 +22,5 @@ independent decoder pixel accuracy.
 
 The generated color/depth/interlace matrix in `png-validation.test.mjs` is
 separate from these browser-provenance fixtures and uses zero-valued samples.
+
+`ico.mjs` builds multi-size ICO files in code (PNG and BMP entries with an upright red/blue split) for the ICO tests and `repository-icons.browser.mjs`; there are no binary ICO fixtures.

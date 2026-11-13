@@ -1,8 +1,12 @@
-export type Project = { id: string; name: string; revision: number | null };
+export type Project = {
+  id: string; name: string; revision: number | null;
+  automatic?: boolean; source?: { pluginId: string; importedAt: number } | null;
+};
 type Notice = { kind: "error" | "success"; text: string };
 type Undo = { projectId: string; token: string; expiresAt: number };
 type Snapshot = {
   projects: Project[];
+  automaticAdoption: boolean;
   selected: string;
   loading: boolean;
   refreshing: boolean;
@@ -12,7 +16,7 @@ type Snapshot = {
   notice: Notice | null;
 };
 type Api = {
-  list(): Promise<{ projects: Project[] }>;
+  list(): Promise<{ projects: Project[]; automaticAdoption?: boolean }>;
   save(input: { projectId: string; base64: string }): Promise<unknown>;
   remove(input: { projectId: string }): Promise<{ undo: Omit<Undo, "projectId"> | null } | void>;
   restore(input: { projectId: string; token: string }): Promise<{ status: "restored" | "expired" | "conflict" }>;
@@ -25,7 +29,7 @@ export function filterProjects(projects: Project[], query: string): Project[] {
 
 export function createSettingsState(api: Api, changed: () => void) {
   let snapshot: Snapshot = {
-    projects: [], selected: "", loading: true, refreshing: false,
+    projects: [], automaticAdoption: true, selected: "", loading: true, refreshing: false,
     loadError: "", operation: null, notice: null, undo: null,
   };
   let request = 0;
@@ -64,7 +68,7 @@ export function createSettingsState(api: Api, changed: () => void) {
     const current = ++request;
     update({ refreshing: true });
     try {
-      const { projects } = await api.list();
+      const { projects, automaticAdoption = true } = await api.list();
       if (current !== request) return;
       const selected = projects.some((row) => row.id === snapshot.selected) ? snapshot.selected : projects[0]?.id ?? "";
       const selectionChanged = selected !== snapshot.selected;
@@ -72,7 +76,7 @@ export function createSettingsState(api: Api, changed: () => void) {
       const conflict = snapshot.undo && (selected !== snapshot.undo.projectId ||
         projects.find(row => row.id === snapshot.undo?.projectId)?.revision !== null);
       if (selectionChanged || conflict) clearUndo();
-      update({ projects, selected, loading: false, refreshing: false, loadError: "",
+      update({ projects, automaticAdoption, selected, loading: false, refreshing: false, loadError: "",
         ...(selectionChanged ? { notice: null } : conflict ? {
           notice: { kind: "error", text: "Icon changed. Undo is no longer available." },
         } : {}) });

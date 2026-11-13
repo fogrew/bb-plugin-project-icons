@@ -1,4 +1,5 @@
 import { automaticIcon } from "./automatic-icon";
+import { HINT_REFRESH_MS, hints } from "./hints-store";
 
 const base = "/api/v1/plugins/project-icons/http";
 const iconUrl = (id: string, revision: number) => `${base}/icon?projectId=${encodeURIComponent(id)}&v=${revision}`;
@@ -7,7 +8,7 @@ export function mountIcons(signal: AbortSignal): () => void {
   let icons: Record<string, number> = {};
   let scheduled = false;
   let disposed = false;
-  const fallbacks = new Map<string, { name: string; url: string }>();
+  const fallbacks = new Map<string, { name: string; color: string | null; url: string }>();
   const decorate = () => {
     if (signal.aborted || disposed) return;
     const live = new Set<string>();
@@ -23,9 +24,10 @@ export function mountIcons(signal: AbortSignal): () => void {
       }
       live.add(id);
       const name = title.textContent ?? "";
+      const color = hints.get(id);
       let fallback = fallbacks.get(id);
-      if (revision === undefined && fallback?.name !== name) {
-        fallback = { name, url: automaticIcon(id, name) };
+      if (revision === undefined && (fallback?.name !== name || fallback.color !== color)) {
+        fallback = { name, color, url: automaticIcon(id, name, color) };
         fallbacks.set(id, fallback);
       }
       const url = revision !== undefined ? iconUrl(id, revision) : fallback!.url;
@@ -70,16 +72,24 @@ export function mountIcons(signal: AbortSignal): () => void {
       schedule();
     } catch (cause) { if (!signal.aborted) console.warn("Project Icons refresh failed", cause); }
   };
-  const onFocus = () => { void refresh(); };
+  const refreshHints = () => {
+    if (document.visibilityState !== "hidden") void hints.refresh();
+  };
+  const onFocus = () => { void refresh(); refreshHints(); };
+  const unsubscribe = hints.subscribe(schedule);
+  const hintTimer = setInterval(refreshHints, HINT_REFRESH_MS);
   window.addEventListener("focus", onFocus);
   window.addEventListener("bb-project-icons-changed", onFocus);
   document.addEventListener("visibilitychange", onFocus);
   schedule();
   void refresh();
+  refreshHints();
   return () => {
     disposed = true;
     fallbacks.clear();
     observer.disconnect();
+    unsubscribe();
+    clearInterval(hintTimer);
     window.removeEventListener("focus", onFocus);
     window.removeEventListener("bb-project-icons-changed", onFocus);
     document.removeEventListener("visibilitychange", onFocus);
