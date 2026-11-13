@@ -45,7 +45,7 @@
     "better-sqlite3": "^12.0.0",
     "cron-parser": "5.10.2",
     "esbuild": "0.28.1",
-    "hono": "^4.11.9",
+    "hono": "^4.13.18",
     "tailwindcss": "4.3.0",
     "typescript": "^5.7.0"
   }
