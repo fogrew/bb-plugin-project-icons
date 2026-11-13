@@ -1,7 +1,7 @@
 import { mountIcons } from "./lib/sidebar-icons";
 import { AutomaticIcon } from "./components/automatic-icon";
 import { useEffect, useMemo, useRef, useId, useState, useSyncExternalStore } from "react";
-import { definePluginApp, useRealtime, useRpc } from "@get-bb/plugin-sdk/app";
+import { definePluginApp, experimental_saveFile, useRealtime, useRpc } from "@get-bb/plugin-sdk/app";
 import type { rpcContract } from "./server";
 import { ProjectList } from "./components/project-list";
 import { createSettingsState } from "./settings-state";
@@ -10,7 +10,7 @@ import { PngPreview } from "./components/icon-preview";
 import { RemovalControls } from "./components/removal-controls";
 import { AdoptionStatus, AutomaticToggle } from "./components/adoption-controls";
 import { AutoAdopt, SCAN_EVENT } from "./components/auto-adopt";
-import { IconTransfer, type TransferApi } from "./components/icon-transfer";
+import { FILE_NAME, IconTransfer, downloadFile, type TransferApi } from "./components/icon-transfer";
 import { fetchPeerImage } from "./lib/peer-image";
 import "./app.css";
 import { version } from "./package.json";
@@ -57,6 +57,10 @@ function Settings({ projectId }: { projectId?: string } = {}) {
     fetchImage: fetchPeerImage,
   }), [rpc]);
   const transfer = useMemo<TransferApi>(() => ({
+    save: async text => {
+      try { return (await experimental_saveFile({ fileName: FILE_NAME, blob: new Blob([text], { type: "application/json" }) })) === "started"; }
+      catch { downloadFile(text); return true; }
+    },
     exportIcons: () => rpc.call("exportIcons"),
     preview: payload => rpc.call("importPreview", { payload }),
     apply: (payload, decisions) => rpc.call("importApply", { payload, decisions }),
@@ -89,6 +93,8 @@ function Settings({ projectId }: { projectId?: string } = {}) {
     {projectId && !loading && !loadError && !project && <p role="alert">Project is no longer available.</p>}
     {projectId ? editor : projects.length > 0 && <ProjectList projects={projects} selected={selected}
       query={query} onQuery={setQuery} onSelect={state.select} iconUrl={iconUrl}>{editor}</ProjectList>}
+    {!projectId && !loading && !loadError && projects.length > 0 && <IconTransfer api={transfer} iconUrl={iconUrl}
+      onImported={() => { void state.refresh(); window.dispatchEvent(new Event("bb-project-icons-changed")); }} />}
 
   </div>;
 }

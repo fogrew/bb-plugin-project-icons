@@ -2,23 +2,24 @@ import { useEffect, useId, useRef, useState, type ChangeEvent } from "react";
 import { MAX_PAYLOAD_CHARS } from "../lib/icon-transfer";
 
 export type PreviewEntry = { sourceId: string; name: string; image: string; hash: string; target: string | null };
-export type PreviewProject = { id: string; name: string; revision: number | null; hash: string | null };
+export type PreviewProject = { id: string; name: string; revision: number | null; hash: string | null; automatic: boolean };
 type Rejected = { status: "rejected"; code: string; message: string };
 type Decision = { sourceId: string; targetId: string; expectedRevision: number | null };
 export type TransferApi = {
+  save(text: string): Promise<boolean>;
   exportIcons(): Promise<{ status: "ok"; json: string; count: number; skipped: number } | Rejected>;
   preview(payload: string): Promise<{ status: "ok"; entries: PreviewEntry[]; projects: PreviewProject[] } | Rejected>;
   apply(payload: string, decisions: Decision[]): Promise<
-    { status: "imported"; imported: number; unchanged: number } | { status: "failed"; rolledBack: boolean } | Rejected>;
+    { status: "imported"; imported: number; pinned: number; unchanged: number } | { status: "failed"; rolledBack: boolean } | Rejected>;
 };
 type Notice = { kind: "error" | "success"; text: string };
 type Review = { payload: string; entries: PreviewEntry[]; projects: PreviewProject[]; choices: Record<string, string> };
-type Outcome = "skip" | "add" | "replace" | "same";
+type Outcome = "skip" | "add" | "replace" | "pin" | "same";
 
+export const FILE_NAME = "project-icons.json";
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
-const FILE_NAME = "project-icons.json";
 
-export function saveFile(text: string, name = FILE_NAME) {
+export function downloadFile(text: string, name = FILE_NAME) {
   const url = URL.createObjectURL(new Blob([text], { type: "application/json" }));
   const link = document.createElement("a");
   link.href = url;
@@ -40,9 +41,12 @@ export function IconTransfer({ api, iconUrl, onImported }: {
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [confirmed, setConfirmed] = useState(false);
+  const [refocus, setRefocus] = useState(0);
   const generation = useRef(0);
+  const fileInput = useRef<HTMLInputElement>(null);
   const help = useId();
   useEffect(() => () => { generation.current += 1; }, []);
+  useEffect(() => { if (refocus) fileInput.current?.focus(); }, [refocus]);
 
   const exportAll = async () => {
     const version = ++generation.current;
@@ -53,26 +57,31 @@ export function IconTransfer({ api, iconUrl, onImported }: {
       if (version !== generation.current) return;
       if (result.status !== "ok") setNotice({ kind: "error", text: result.message });
       else if (result.count === 0) setNotice({ kind: "error", text: "No project has an icon to export yet." });
+      else if (!(await api.save(result.json))) setNotice({ kind: "error", text: "The file could not be saved." });
       else {
-        saveFile(result.json);
         setNotice({ kind: "success", text: `Exported ${plural(result.count, "icon")} to ${FILE_NAME}.${result.skipped ? ` ${plural(result.skipped, "unreadable icon")} left out.` : ""}` });
       }
     } catch { if (version === generation.current) setNotice({ kind: "error", text: "Could not export icons. Try again." }); }
     finally { if (version === generation.current) setBusy(null); }
   };
 
-  const showPreview = async (payload: string, version: number) => {
+  const showPreview = async (payload: string, version: number, keep?: Record<string, string>) => {
     try {
       const result = await api.preview(payload);
       if (version !== generation.current) return;
-      if (result.status !== "ok") setNotice({ kind: "error", text: result.message });
-      else if (result.entries.length === 0) setNotice({ kind: "error", text: "The file contains no icons." });
+      setConfirmed(false);
+      if (result.status !== "ok") { setReview(null); setNotice({ kind: "error", text: result.message }); }
+      else if (result.entries.length === 0) { setReview(null); setNotice({ kind: "error", text: "The file contains no icons." }); }
       else {
-        setConfirmed(false);
+        const ids = new Set(result.projects.map(project => project.id));
+        const choice = (entry: PreviewEntry) => {
+          const kept = keep && Object.hasOwn(keep, entry.sourceId) ? keep[entry.sourceId] : undefined;
+          return kept !== undefined && (kept === "" || ids.has(kept)) ? kept : entry.target ?? "";
+        };
         setReview({ payload, entries: result.entries, projects: result.projects,
-          choices: Object.fromEntries(result.entries.map(entry => [entry.sourceId, entry.target ?? ""])) });
+          choices: Object.fromEntries(result.entries.map(entry => [entry.sourceId, choice(entry)])) });
       }
-    } catch { if (version === generation.current) setNotice({ kind: "error", text: "Could not check the file. Try again." }); }
+    } catch { if (version === generation.current) { setReview(null); setNotice({ kind: "error", text: "Could not check the file. Try again." }); } }
   };
 
   const choose = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -82,7 +91,7 @@ export function IconTransfer({ api, iconUrl, onImported }: {
     const version = ++generation.current;
     setNotice(null);
     setReview(null);
-    if (file.size > MAX_PAYLOAD_CHARS) { setNotice({ kind: "error", text: "That file is larger than 12 MB." }); return; }
+    if (file.size > MAX_PAYLOAD_CHARS) { setNotice({ kind: "error", text: "That file is larger than 12 MiB." }); return; }
     setBusy("Checking file…");
     try {
       const payload = await file.text();
@@ -96,24 +105,27 @@ export function IconTransfer({ api, iconUrl, onImported }: {
     setReview(null);
     setConfirmed(false);
     setNotice(null);
+    setRefocus(count => count + 1);
   };
 
   const byId = new Map((review?.projects ?? []).map(project => [project.id, project]));
   const rows = (review?.entries ?? []).map(entry => {
     const target = byId.get(review!.choices[entry.sourceId] ?? "");
-    const outcome: Outcome = !target ? "skip" : target.hash === entry.hash ? "same" : target.revision === null ? "add" : "replace";
+    const outcome: Outcome = !target ? "skip"
+      : target.hash === entry.hash ? (target.automatic ? "pin" : "same")
+      : target.revision === null ? "add" : "replace";
     return { entry, target, outcome };
   });
   const count = (outcome: Outcome) => rows.filter(row => row.outcome === outcome).length;
   const chosen = rows.flatMap(row => row.target ? [row.target.id] : []);
   const clash = new Set(chosen).size !== chosen.length;
-  const imports = count("add") + count("replace");
+  const imports = count("add") + count("replace") + count("pin");
   const canImport = !busy && !clash && imports > 0 && (count("replace") === 0 || confirmed);
 
   const apply = async () => {
     if (!review || !canImport) return;
     const version = ++generation.current;
-    const { payload } = review;
+    const { payload, choices } = review;
     const decisions = rows.flatMap(({ entry, target, outcome }) =>
       target && outcome !== "same" ? [{ sourceId: entry.sourceId, targetId: target.id, expectedRevision: target.revision }] : []);
     setBusy("Importing icons…");
@@ -123,20 +135,31 @@ export function IconTransfer({ api, iconUrl, onImported }: {
       if (version !== generation.current) return;
       if (result.status === "imported") {
         setReview(null);
-        setNotice({ kind: "success", text: `Imported ${plural(result.imported, "icon")}${result.unchanged ? `; ${plural(result.unchanged, "icon")} already matched` : ""}.` });
+        const extra = [
+          result.pinned ? `${plural(result.pinned, "icon")} kept as manual` : "",
+          result.unchanged ? `${plural(result.unchanged, "icon")} already matched` : "",
+        ].filter(Boolean);
+        setNotice({ kind: "success", text: `Imported ${plural(result.imported, "icon")}${extra.length ? `; ${extra.join("; ")}` : ""}.` });
+        setRefocus(value => value + 1);
         onImported();
       } else if (result.status === "failed") {
         setReview(null);
         setNotice({ kind: "error", text: result.rolledBack ? "The import failed and nothing was changed." : "The import failed and may be incomplete. Check your project icons." });
+        setRefocus(value => value + 1);
         onImported();
       } else if (result.code === "stale") {
         setNotice({ kind: "error", text: `${result.message} The preview was refreshed.` });
-        await showPreview(payload, version);
-      } else { setReview(null); setNotice({ kind: "error", text: result.message }); }
+        await showPreview(payload, version, choices);
+      } else {
+        setReview(null);
+        setNotice({ kind: "error", text: result.message });
+        setRefocus(value => value + 1);
+      }
     } catch {
       if (version !== generation.current) return;
       setReview(null);
       setNotice({ kind: "error", text: "The import did not finish. Check your project icons before trying again." });
+      setRefocus(value => value + 1);
       onImported();
     } finally { if (version === generation.current) setBusy(null); }
   };
@@ -149,7 +172,7 @@ export function IconTransfer({ api, iconUrl, onImported }: {
     <div className="bb-project-icons-transfer-actions">
       <button type="button" disabled={busy !== null || review !== null} aria-describedby={help} onClick={() => void exportAll()}>Export icons</button>
       <label>Import icons from a file
-        <input type="file" accept=".json,application/json" disabled={busy !== null} aria-describedby={help} onChange={event => void choose(event)} />
+        <input ref={fileInput} type="file" accept=".json,application/json" disabled={busy !== null} aria-describedby={help} onChange={event => void choose(event)} />
       </label>
     </div>
     {busy && <p role="status">{busy}</p>}
@@ -164,7 +187,7 @@ export function IconTransfer({ api, iconUrl, onImported }: {
             <div className="bb-project-icons-review-body">
               <strong>{entry.name || "(unnamed project)"}</strong>
               <label>Import into
-                <select value={review.choices[entry.sourceId] ?? ""} disabled={busy !== null}
+                <select aria-label={`Import ${entry.name || "unnamed project"} into`} value={review.choices[entry.sourceId] ?? ""} disabled={busy !== null}
                   onChange={event => {
                     setConfirmed(false);
                     setReview({ ...review, choices: { ...review.choices, [entry.sourceId]: event.target.value } });
@@ -176,18 +199,19 @@ export function IconTransfer({ api, iconUrl, onImported }: {
               </label>
               <p role="status" className="bb-project-icons-help">
                 {outcome === "skip" && (entry.target === null ? "No project here has this id. Choose a project to import into, or leave it out." : "Left out.")}
-                {outcome === "add" && `Adds an icon to ${target!.name}.`}
-                {outcome === "same" && `${target!.name} already has this exact icon. Nothing to change.`}
-                {outcome === "replace" && `Replaces the current icon of ${target!.name}.`}
+                {outcome === "add" && `Adds an icon to ${label(target!, review.projects)}.`}
+                {outcome === "same" && `${label(target!, review.projects)} already has this exact icon. Nothing to change.`}
+                {outcome === "pin" && `${label(target!, review.projects)} already has this exact icon from another plugin. Importing keeps it as a manual icon, so that plugin stops updating it.`}
+                {outcome === "replace" && `Replaces the current icon of ${label(target!, review.projects)}.`}
                 {target && entry.target === target.id && target.name !== entry.name ? ` The file calls this project "${entry.name}".` : ""}
               </p>
             </div>
-            {outcome === "replace" && <img className="bb-project-icons-current" src={iconUrl(target!.id, target!.revision!)} alt={`Current icon of ${target!.name}`} width={40} height={40} />}
+            {outcome === "replace" && <img className="bb-project-icons-current" src={iconUrl(target!.id, target!.revision!)} alt={`Current icon of ${label(target!, review.projects)}`} width={40} height={40} />}
           </li>;
         })}
       </ul>
       <p role="status">
-        {plural(count("add"), "icon")} to add, {plural(count("replace"), "icon")} to replace, {count("same")} unchanged, {count("skip")} left out.
+        {plural(count("add"), "icon")} to add, {plural(count("replace"), "icon")} to replace, {count("pin")} to keep as manual, {count("same")} unchanged, {count("skip")} left out.
       </p>
       {clash && <p role="alert">Two icons are set to go into the same project. Change one of them.</p>}
       {count("replace") > 0 && <label className="bb-project-icons-confirm">

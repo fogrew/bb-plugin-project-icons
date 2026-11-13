@@ -6,7 +6,10 @@ export const MAX_NAME_CHARS = 200;
 const MAX_IMAGE_CHARS = 87384;
 const PROJECT_ID = /^proj_[a-z0-9]{10,32}$/;
 const BASE64 = /^[A-Za-z0-9+/]+={0,2}$/;
-const UNSAFE_NAME = /[\p{Cc}‎‏‪-‮⁦-⁩\ud800-\udfff]/u;
+const BACKSLASH = String.fromCharCode(92);
+const UNSAFE_RANGES = [[0x61c, 0x61c], [0x200e, 0x200f], [0x2028, 0x2029], [0x202a, 0x202e], [0x2066, 0x2069], [0xe0000, 0xe007f], [0xd800, 0xdfff]];
+const codePoint = (code: number) => `${BACKSLASH}u{${code.toString(16)}}`;
+const UNSAFE_NAME = new RegExp(`[${BACKSLASH}p{Cc}${UNSAFE_RANGES.map(([from, to]) => `${codePoint(from)}-${codePoint(to)}`).join("")}]`, "u");
 const UNSAFE_NAME_ALL = new RegExp(UNSAFE_NAME.source, "gu");
 
 export const IMPORT_ERROR_CODES = [
@@ -26,7 +29,36 @@ export class ImportError extends Error {
 export type ExportEntry = { projectId: string; projectName: string; image: string };
 export type ParsedEntry = { sourceId: string; name: string; image: string; bytes: Buffer };
 export type Decision = { sourceId: string; targetId: string; expectedRevision: number | null };
-export type TargetState = { revision: number | null; image: string | null };
+export type TargetState = { revision: number | null; image: string | null; automatic: boolean };
+
+const MAX_DEPTH = 3;
+const KEPT_CHUNKS = new Set(["IHDR", "PLTE", "tRNS", "gAMA", "IDAT", "IEND"]);
+
+export function stripPngMetadata(png: Buffer): Buffer {
+  const kept: Buffer[] = [png.subarray(0, 8)];
+  for (let offset = 8; offset + 12 <= png.length;) {
+    const end = offset + 12 + png.readUInt32BE(offset);
+    if (end > png.length) break;
+    if (KEPT_CHUNKS.has(png.toString("latin1", offset + 4, offset + 8))) kept.push(png.subarray(offset, end));
+    offset = end;
+  }
+  return Buffer.concat(kept);
+}
+
+function nestsTooDeep(text: string): boolean {
+  let depth = 0;
+  let inString = false;
+  for (let position = 0; position < text.length; position += 1) {
+    const code = text.charCodeAt(position);
+    if (inString) {
+      if (code === 92) position += 1;
+      else if (code === 34) inString = false;
+    } else if (code === 34) inString = true;
+    else if (code === 91 || code === 123) { if (++depth > MAX_DEPTH) return true; }
+    else if ((code === 93 || code === 125) && depth > 0) depth -= 1;
+  }
+  return false;
+}
 
 export function exportName(name: string): string {
   let result = "";
@@ -52,7 +84,8 @@ const malformed = () => new ImportError("malformed", "The file is not a valid Pr
 
 export function parseExport(text: unknown, decode: (base64: string) => Buffer): ParsedEntry[] {
   if (typeof text !== "string") throw malformed();
-  if (text.length > MAX_PAYLOAD_CHARS) throw new ImportError("too-large", "The file is larger than 12 MB.");
+  if (text.length > MAX_PAYLOAD_CHARS) throw new ImportError("too-large", "The file is larger than 12 MiB.");
+  if (nestsTooDeep(text)) throw malformed();
   let raw: unknown;
   try { raw = JSON.parse(text.charCodeAt(0) === 0xfeff ? text.slice(1) : text); }
   catch { throw new ImportError("not-json", "The file is not valid JSON."); }
@@ -91,6 +124,7 @@ export function planApply(entries: ParsedEntry[], decisions: Decision[], targets
   const sources = new Set<string>();
   const used = new Set<string>();
   const writes: { targetId: string; image: string }[] = [];
+  const pins: string[] = [];
   let unchanged = 0;
   for (const { sourceId, targetId, expectedRevision } of decisions) {
     const entry = byId.get(sourceId);
@@ -103,8 +137,9 @@ export function planApply(entries: ParsedEntry[], decisions: Decision[], targets
     if (!target || target.revision !== expectedRevision) {
       throw new ImportError("stale", "A project or its icon changed since the preview. Review the import again.");
     }
-    if (target.image === entry.image) unchanged += 1;
-    else writes.push({ targetId, image: entry.image });
+    if (target.image !== entry.image) writes.push({ targetId, image: entry.image });
+    else if (target.automatic) pins.push(targetId);
+    else unchanged += 1;
   }
-  return { writes, unchanged };
+  return { writes, pins, unchanged };
 }

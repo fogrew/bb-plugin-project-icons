@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { MAX_ICONS, MAX_PAYLOAD_CHARS, buildExport } from "./lib/icon-transfer.ts";
+import { crc32 } from "node:zlib";
+import { readFile } from "node:fs/promises";
 import { opaquePng, transparentPng } from "./test-fixtures/png.mjs";
 import { A, B, setup } from "./test-fixtures/peer-host.mjs";
 
@@ -103,13 +105,13 @@ test("round trip across servers never maps by name until the user chooses", asyn
   assert.deepEqual(preview.projects.map(row => [row.id, row.name, row.revision, row.hash]), [[C, "Alpha", null, null], [D, "Beta", null, null], [E, "Beta", null, null]]);
   assert.equal(preview.entries[0].hash, sha(transparentPng));
   assert.equal(preview.entries[0].image, b64(transparentPng));
-  assert.deepEqual(await target.call("importApply", { payload: json, decisions: [] }), { status: "imported", imported: 0, unchanged: 0 });
+  assert.deepEqual(await target.call("importApply", { payload: json, decisions: [] }), { status: "imported", imported: 0, pinned: 0, unchanged: 0 });
   assert.deepEqual(writes.log, []);
   assert.equal(target.harness.realtimeSignals.length, signals);
   assert.equal(await icon(target, C), null);
 
   const result = await target.call("importApply", { payload: json, decisions: [decide(A, C), decide(B, E)] });
-  assert.deepEqual(result, { status: "imported", imported: 2, unchanged: 0 });
+  assert.deepEqual(result, { status: "imported", imported: 2, pinned: 0, unchanged: 0 });
   assert.ok((await icon(target, C)).equals(transparentPng));
   assert.ok((await icon(target, E)).equals(opaquePng));
   assert.equal(await icon(target, D), null);
@@ -166,7 +168,7 @@ test("replacing an icon needs the revision shown in the preview", async () => {
   assert.deepEqual(await snapshot(fixture.bb), before);
   assert.equal(fixture.harness.realtimeSignals.length, signals);
   const applied = await fixture.call("importApply", { payload, decisions: [decide(A, A, row.revision)] });
-  assert.deepEqual(applied, { status: "imported", imported: 1, unchanged: 0 });
+  assert.deepEqual(applied, { status: "imported", imported: 1, pinned: 0, unchanged: 0 });
   assert.ok((await icon(fixture, A)).equals(opaquePng));
   assert.ok((await fixture.row(A)).revision > row.revision);
   await fixture.dispose();
@@ -179,7 +181,7 @@ test("importing an identical icon changes nothing", async () => {
   assert.equal(row.hash, entry.hash);
   const before = await snapshot(fixture.bb);
   const writes = instrument(fixture.bb);
-  assert.deepEqual(await fixture.call("importApply", { payload, decisions: [decide(A, A, row.revision)] }), { status: "imported", imported: 0, unchanged: 1 });
+  assert.deepEqual(await fixture.call("importApply", { payload, decisions: [decide(A, A, row.revision)] }), { status: "imported", imported: 0, pinned: 0, unchanged: 1 });
   assert.deepEqual(writes.log, []);
   assert.deepEqual(await snapshot(fixture.bb), before);
   await fixture.dispose();
@@ -197,7 +199,7 @@ test("an auto-adopted icon replaced by an import turns manual", async () => {
   await fixture.dispose();
 });
 
-test("an import invalidates a pending Undo offer for the project", async () => {
+test("a pending Undo offer cannot restore over an imported icon", async () => {
   const fixture = await host([{ id: A, name: "Alpha" }], { [A]: transparentPng });
   const { undo } = await fixture.call("removeWithUndo", { projectId: A });
   await fixture.call("importApply", { payload: file([[A, "Alpha", opaquePng]]), decisions: [decide(A, A)] });
@@ -378,5 +380,143 @@ test("concurrent imports and saves serialize without losing icons", async () => 
   const rows = (await fixture.call("list", null)).projects;
   assert.ok(rows.every(row => row.revision !== null));
   assert.equal(new Set(rows.map(row => row.revision)).size, 3);
+  await fixture.dispose();
+});
+
+const withText = (png, text) => {
+  const body = Buffer.concat([Buffer.from("tEXt"), Buffer.from(text, "latin1")]);
+  const chunk = Buffer.alloc(body.length + 8);
+  chunk.writeUInt32BE(body.length - 4);
+  body.copy(chunk, 4);
+  chunk.writeUInt32BE(crc32(body), body.length + 4);
+  return Buffer.concat([png.subarray(0, 33), chunk, png.subarray(33)]);
+};
+
+test("preview reports whether another plugin still manages a project's icon", async () => {
+  const fixture = await host([{ id: A, name: "Alpha" }, { id: B, name: "Beta" }, { id: C, name: "Gamma" }], { [B]: transparentPng });
+  await fixture.adopt({ projectId: A, peer: "homepage", hash: "a".repeat(64), revision: null });
+  const preview = await fixture.call("importPreview", { payload: file([[A, "Alpha", opaquePng]]) });
+  assert.deepEqual(preview.projects.map(row => [row.id, row.revision !== null, row.automatic]), [[A, true, true], [B, true, false], [C, false, true]]);
+  await fixture.dispose();
+});
+
+test("importing the icon another plugin already supplied keeps it as manual without rewriting it", async () => {
+  const fixture = await host([{ id: A, name: "Alpha" }]);
+  await fixture.adopt({ projectId: A, peer: "homepage", hash: "a".repeat(64), revision: null });
+  const adopted = await fixture.row(A);
+  const payload = file([[A, "Alpha", transparentPng]]);
+  const writes = instrument(fixture.bb);
+  const index = await fixture.bb.storage.kv.get("index");
+  const result = await fixture.call("importApply", { payload, decisions: [decide(A, A, adopted.revision)] });
+  assert.deepEqual(result, { status: "imported", imported: 0, pinned: 1, unchanged: 0 });
+  assert.deepEqual(writes.log, [["set", "adoption"]]);
+  assert.deepEqual(await fixture.bb.storage.kv.get("index"), index);
+  const after = await fixture.row(A);
+  assert.deepEqual([after.revision, after.source, after.automatic], [adopted.revision, null, false]);
+  assert.equal((await fixture.adopt({ projectId: A, peer: "homepage", hash: "b".repeat(64), revision: after.revision })).reason, "manual");
+  await fixture.dispose();
+});
+
+test("a failed pin is rolled back", async () => {
+  const fixture = await host([{ id: A, name: "Alpha" }]);
+  await fixture.adopt({ projectId: A, peer: "homepage", hash: "a".repeat(64), revision: null });
+  const { revision } = await fixture.row(A);
+  const before = await snapshot(fixture.bb);
+  instrument(fixture.bb, { failAt: 1 });
+  const result = await fixture.call("importApply", { payload: file([[A, "Alpha", transparentPng]]), decisions: [decide(A, A, revision)] });
+  assert.deepEqual(result, { status: "failed", rolledBack: true });
+  assert.deepEqual(await snapshot(fixture.bb), before);
+  await fixture.dispose();
+});
+
+test("export drops PNG metadata that could carry local paths, and the result still imports", async () => {
+  const secret = "Source" + String.fromCharCode(0) + "C:/Users/alice/secret/project";
+  const noisy = withText(transparentPng, secret);
+  const fixture = await host([{ id: A, name: "Alpha" }], { [A]: noisy });
+  assert.ok((await icon(fixture, A)).toString("latin1").includes("alice"));
+  const { json, count } = await fixture.call("exportIcons", null);
+  assert.equal(count, 1);
+  assert.ok(!json.includes("alice"));
+  const [entry] = JSON.parse(json).icons;
+  assert.ok(Buffer.from(entry.image, "base64").equals(transparentPng));
+  const preview = await fixture.call("importPreview", { payload: json });
+  assert.equal(preview.status, "ok");
+  await fixture.dispose();
+});
+
+test("the built settings app mounts the export and import controls", async () => {
+  const bundle = await readFile(new URL("./dist/app.js", import.meta.url), "utf8");
+  for (const text of ["Export and import", "Export icons", "Import icons from a file", "Import preview"]) assert.ok(bundle.includes(text), text);
+});
+
+test("a failing change notification does not fail a committed import", async () => {
+  const fixture = await host([{ id: A, name: "Alpha" }]);
+  fixture.bb.realtime.publish = () => { throw new Error("injected publish failure"); };
+  const result = await fixture.call("importApply", { payload: file([[A, "Alpha", opaquePng]]), decisions: [decide(A, A)] });
+  assert.deepEqual(result, { status: "imported", imported: 1, pinned: 0, unchanged: 0 });
+  assert.ok((await icon(fixture, A)).equals(opaquePng));
+  await fixture.dispose();
+});
+
+test("an exhausted revision counter refuses the import before any write", async () => {
+  const fixture = await host([{ id: A, name: "Alpha" }, { id: B, name: "Beta" }, { id: C, name: "Gamma" }]);
+  await fixture.bb.storage.kv.set("revisionHighwater", Number.MAX_SAFE_INTEGER - 1);
+  const before = await snapshot(fixture.bb);
+  const writes = instrument(fixture.bb);
+  await assert.rejects(fixture.call("importApply", {
+    payload: file([[A, "Alpha", opaquePng], [B, "Beta", opaquePng], [C, "Gamma", opaquePng]]),
+    decisions: [decide(A, A), decide(B, B), decide(C, C)],
+  }), /revision exhausted/);
+  assert.deepEqual(writes.log, []);
+  assert.deepEqual(await snapshot(fixture.bb), before);
+  await fixture.dispose();
+});
+
+test("a storage outage before the first write is a clean failure, not a half rollback", async () => {
+  const run = await failureScenario({ failFrom: 1 });
+  run.writes.reset();
+  const result = await run.fixture.call("importApply", { payload: run.payload, decisions: run.decisions });
+  assert.deepEqual(result, { status: "failed", rolledBack: true });
+  assert.deepEqual(await stable(run.fixture.bb), run.before);
+  await run.fixture.dispose();
+});
+
+test("a failed write rolls back to an empty store by deleting the keys it created", async () => {
+  const projects = [{ id: A, name: "Alpha" }, { id: B, name: "Beta" }];
+  const payload = file([[A, "Alpha", opaquePng], [B, "Beta", transparentPng]]);
+  const dry = await host(projects);
+  const dryWrites = instrument(dry.bb);
+  await dry.call("importApply", { payload, decisions: [decide(A, A), decide(B, B)] });
+  const total = dryWrites.log.length;
+  await dry.dispose();
+  for (let step = 1; step <= total; step += 1) {
+    const fixture = await host(projects);
+    const before = await stable(fixture.bb);
+    instrument(fixture.bb, { failAt: step });
+    assert.deepEqual(await fixture.call("importApply", { payload, decisions: [decide(A, A), decide(B, B)] }), { status: "failed", rolledBack: true }, `step ${step}`);
+    assert.deepEqual(await stable(fixture.bb), before, `state after failure at step ${step}`);
+    assert.deepEqual(Object.keys(await stable(fixture.bb)), Object.keys(before));
+    await fixture.dispose();
+  }
+});
+
+test("imports interleave safely with removals, restores and automatic adoption", async () => {
+  const fixture = await host([{ id: A, name: "Alpha" }, { id: B, name: "Beta" }, { id: C, name: "Gamma" }, { id: D, name: "Delta" }], { [C]: transparentPng });
+  const payload = file([[A, "Alpha", opaquePng], [B, "Beta", opaquePng]]);
+  const { undo } = await fixture.call("removeWithUndo", { projectId: C });
+  const results = await Promise.all([
+    fixture.call("importApply", { payload, decisions: [decide(A, A), decide(B, B)] }),
+    fixture.call("restore", { projectId: C, token: undo.token }),
+    fixture.adopt({ projectId: D, peer: "homepage", hash: "a".repeat(64), revision: null }),
+    fixture.call("remove", { projectId: A }),
+  ]);
+  assert.equal(results[0].status, "imported");
+  assert.equal(results[1].status, "restored");
+  assert.equal(results[2].status, "adopted");
+  const rows = Object.fromEntries((await fixture.call("list", null)).projects.map(row => [row.id, row]));
+  assert.equal(rows[A].revision, null);
+  assert.ok(rows[B].revision && rows[C].revision && rows[D].revision);
+  assert.equal(new Set([rows[B].revision, rows[C].revision, rows[D].revision]).size, 3);
+  assert.deepEqual([rows[B].automatic, rows[D].automatic], [false, true]);
   await fixture.dispose();
 });

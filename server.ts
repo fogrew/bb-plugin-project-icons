@@ -3,7 +3,7 @@ import { z } from "zod";
 import { createHash, randomUUID } from "node:crypto";
 import { decodePng } from "./lib/png-validation";
 import {
-  IMPORT_ERROR_CODES, ImportError, MAX_ICONS, MAX_PAYLOAD_CHARS, buildExport, exportName, parseExport, planApply,
+  IMPORT_ERROR_CODES, ImportError, MAX_ICONS, MAX_PAYLOAD_CHARS, buildExport, exportName, parseExport, planApply, stripPngMetadata,
   type ExportEntry, type ParsedEntry, type TargetState,
 } from "./lib/icon-transfer";
 import {
@@ -98,7 +98,7 @@ export const rpcContract = defineRpcContract({
       z.object({
         status: z.literal("ok"),
         entries: z.array(z.object({ sourceId: idSchema, name: z.string(), image: z.string(), hash: z.string(), target: idSchema.nullable() })),
-        projects: z.array(z.object({ id: idSchema, name: z.string(), revision: z.number().nullable(), hash: z.string().nullable() })),
+        projects: z.array(z.object({ id: idSchema, name: z.string(), revision: z.number().nullable(), hash: z.string().nullable(), automatic: z.boolean() })),
       }),
       rejection,
     ]),
@@ -106,7 +106,7 @@ export const rpcContract = defineRpcContract({
   importApply: {
     input: z.object({ payload: payloadSchema, decisions: z.array(decisionSchema).max(MAX_ICONS) }).strict(),
     output: z.discriminatedUnion("status", [
-      z.object({ status: z.literal("imported"), imported: z.number(), unchanged: z.number() }),
+      z.object({ status: z.literal("imported"), imported: z.number(), pinned: z.number(), unchanged: z.number() }),
       z.object({ status: z.literal("failed"), rolledBack: z.boolean() }),
       rejection,
     ]),
@@ -192,38 +192,44 @@ export default function plugin(bb: BbPluginApi) {
     if (error instanceof ImportError) return { status: "rejected" as const, code: error.code, message: error.message };
     throw error;
   };
-  const commitImport = async (writes: { targetId: string; image: string }[], index: Index, records: AdoptionMap) => {
-    const priorIndex = await bb.storage.kv.get("index");
+  const commitImport = async (writes: { targetId: string; image: string }[], pins: string[], index: Index, records: AdoptionMap) => {
     const priorRecords = await bb.storage.kv.get("adoption");
-    const priorImages = await Promise.all(writes.map(async ({ targetId }) => [`image:${targetId}`, await bb.storage.kv.get(`image:${targetId}`)] as const));
-    let revision = await nextRevision(index);
+    const priorIndex = await bb.storage.kv.get("index");
+    const priorImages = new Map(await Promise.all(writes.map(async ({ targetId }) => [targetId, await bb.storage.kv.get(`image:${targetId}`)] as const)));
+    let revision = writes.length ? await nextRevision(index) : 0;
     const highest = revision + writes.length - 1;
-    if (!Number.isSafeInteger(highest)) throw new Error("Icon revision exhausted");
+    if (writes.length && !Number.isSafeInteger(highest)) throw new Error("Icon revision exhausted");
     const nextIndex: Index = { ...index };
     const nextRecords: AdoptionMap = { ...records };
+    const undo: (readonly [string, unknown])[] = [];
+    const write = async (key: string, value: Parameters<typeof bb.storage.kv.set>[1], prior: unknown) => {
+      undo.push([key, prior]);
+      await bb.storage.kv.set(key, value);
+    };
     try {
-      await bb.storage.kv.set("revisionHighwater", highest);
+      if (writes.length) await bb.storage.kv.set("revisionHighwater", highest);
       for (const { targetId, image } of writes) {
-        await bb.storage.kv.set(`image:${targetId}`, image);
+        await write(`image:${targetId}`, image, priorImages.get(targetId));
         nextIndex[targetId] = revision++;
-        nextRecords[targetId] = { mode: "manual" };
       }
-      await writeRecords(nextRecords);
-      await bb.storage.kv.set("index", nextIndex);
-    } catch {
+      for (const id of [...writes.map(item => item.targetId), ...pins]) nextRecords[id] = { mode: "manual" };
+      await write("adoption", nextRecords, priorRecords);
+      if (writes.length) await write("index", nextIndex, priorIndex);
+    } catch (error) {
       let rolledBack = true;
-      const restore = [["index", priorIndex], ["adoption", priorRecords], ...priorImages] as const;
-      for (const [key, value] of restore) {
-        try { await (value == null ? bb.storage.kv.delete(key) : bb.storage.kv.set(key, value)); }
+      for (const [key, value] of undo.reverse()) {
+        try { await (value == null ? bb.storage.kv.delete(key) : bb.storage.kv.set(key, value as Parameters<typeof bb.storage.kv.set>[1])); }
         catch { rolledBack = false; }
       }
-      bb.log.warn(rolledBack ? "Icon import failed and was rolled back" : "Icon import failed and could not be fully rolled back");
+      bb.log.warn(`Icon import failed (${error instanceof Error ? error.message : "unknown error"}) and ${rolledBack ? "was rolled back" : "could not be fully rolled back"}`);
       return { status: "failed" as const, rolledBack };
     }
     for (const { targetId } of writes) offers.delete(targetId);
     prune();
-    bb.realtime.publish("changed", { imported: writes.length });
-    bb.log.info(`Imported ${writes.length} icons`);
+    try {
+      bb.realtime.publish("changed", { imported: writes.length + pins.length });
+      bb.log.info(`Imported ${writes.length} icons`);
+    } catch { bb.log.warn("Icon import committed but its change notification failed"); }
     return null;
   };
   const projectExists = async (id: string): Promise<boolean> => (await bb.sdk.projects.list()).some((project) => project.id === id);
@@ -477,9 +483,10 @@ export default function plugin(bb: BbPluginApi) {
         for (const project of projects) {
           if (!Object.hasOwn(index, project.id)) continue;
           const image = await bb.storage.kv.get<string>(`image:${project.id}`);
-          try { decodePng(image ?? ""); }
+          let clean: string;
+          try { clean = stripPngMetadata(Buffer.from(decodePng(image ?? ""))).toString("base64"); decodePng(clean); }
           catch { skipped += 1; continue; }
-          icons.push({ projectId: project.id, projectName: exportName(project.name), image: image! });
+          icons.push({ projectId: project.id, projectName: exportName(project.name), image: clean });
         }
         try { return { status: "ok" as const, json: buildExport(icons), count: icons.length, skipped }; }
         catch (error) { return rejected(error); }
@@ -493,11 +500,15 @@ export default function plugin(bb: BbPluginApi) {
       return serialize(async () => {
         const projects = await bb.sdk.projects.list();
         const index = await readIndex();
+        const records = await readRecords();
         const rows = [];
         for (const project of projects) {
           const revision = index[project.id] ?? null;
           const image = revision === null ? null : await bb.storage.kv.get<string>(`image:${project.id}`);
-          rows.push({ id: project.id, name: project.name, revision, hash: image ? sha256(Buffer.from(image, "base64")) : null });
+          rows.push({
+            id: project.id, name: project.name, revision, hash: image ? sha256(Buffer.from(image, "base64")) : null,
+            automatic: targetFor(project.id, index[project.id], records[project.id]) !== null,
+          });
         }
         const known = new Set(projects.map(project => project.id));
         return {
@@ -518,18 +529,23 @@ export default function plugin(bb: BbPluginApi) {
       return serialize(async () => {
         const known = new Set((await bb.sdk.projects.list()).map(project => project.id));
         const index = await readIndex();
+        const records = await readRecords();
         const targets = new Map<string, TargetState>();
         for (const { targetId } of decisions) {
           if (!known.has(targetId) || targets.has(targetId)) continue;
           const revision = index[targetId] ?? null;
-          targets.set(targetId, { revision, image: revision === null ? null : (await bb.storage.kv.get<string>(`image:${targetId}`)) ?? null });
+          targets.set(targetId, {
+            revision, image: revision === null ? null : (await bb.storage.kv.get<string>(`image:${targetId}`)) ?? null,
+            automatic: revision !== null && targetFor(targetId, revision, records[targetId]) !== null,
+          });
         }
         let plan: ReturnType<typeof planApply>;
         try { plan = planApply(entries, decisions, targets); }
         catch (error) { return rejected(error); }
-        if (!plan.writes.length) return { status: "imported" as const, imported: 0, unchanged: plan.unchanged };
-        const failure = await commitImport(plan.writes, index, await readRecords());
-        return failure ?? { status: "imported" as const, imported: plan.writes.length, unchanged: plan.unchanged };
+        const { writes, pins, unchanged } = plan;
+        if (!writes.length && !pins.length) return { status: "imported" as const, imported: 0, pinned: 0, unchanged };
+        const failure = await commitImport(writes, pins, index, records);
+        return failure ?? { status: "imported" as const, imported: writes.length, pinned: pins.length, unchanged };
       });
     },
   });
