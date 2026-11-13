@@ -68,7 +68,7 @@ function Settings({ projectId }: { projectId?: string } = {}) {
       <AdoptionStatus project={project} automaticAdoption={automaticAdoption} busy={busy || adoptionBusy}
         onEnable={() => void changeAdoption(() => rpc.call("enableAutomatic", { projectId: project.id }), "Could not re-enable automatic icons. Try again.")} />
       {adoptionError && <p role="alert">{adoptionError}</p>}
-      <TargetPicker project={project} state={state} />
+      <TargetPicker key={project.id} project={project} state={state} />
       <IconPicker key={`${project.id}:${target}`} project={project} state={state} busy={busy} repository={repository} peerArtwork={peerArtwork} />
       <RemovalControls project={project} state={state} />
     </fieldset>;

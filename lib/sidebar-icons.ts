@@ -95,7 +95,7 @@ export function mountIcons(signal: AbortSignal): () => void {
       const nextVariants = variantResponse?.ok ? parseVariantResponse(await variantResponse.json().catch(() => null)) : null;
       if (disposed || signal.aborted || current !== request) return;
       icons = Object.fromEntries(Object.entries(data).filter(([id, revision]) => PROJECT_ID.test(id) && typeof revision === "number")) as Record<string, number>;
-      if (nextVariants) variants = nextVariants;
+      variants = nextVariants ?? {};
       schedule();
     } catch (cause) { if (!signal.aborted) console.warn("Project Icons refresh failed", cause); }
   };

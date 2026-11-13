@@ -59,31 +59,36 @@ test("a variant needs a default icon and is served per theme", async () => {
   } finally { await harness.lifecycle.dispose(); }
 });
 
-test("resolveIcon version 1 stays compatible and honours the optional theme", async () => {
+test("resolveIcon version 1 is unchanged: theme is accepted and ignored, variants are not exposed", async () => {
   const ctx = await host();
   try {
     const base = await ctx.call("save", { projectId, base64: b64(transparentPng) });
-    const dark = await ctx.call("save", { projectId, base64: b64(opaquePng), theme: "dark" });
-    const plain = await ctx.call("resolveIcon", { version: 1, projectId });
-    assert.equal(plain.theme, "any");
-    assert.equal(plain.revision, base.revision);
-    assert.equal(plain.urlPath, `/api/v1/plugins/project-icons/http/icon?projectId=${projectId}&v=${base.revision}`);
-    const asLight = await ctx.call("resolveIcon", { version: 1, projectId, theme: "light" });
-    assert.equal(asLight.theme, "any");
-    assert.equal(asLight.revision, base.revision);
-    const asDark = await ctx.call("resolveIcon", { version: 1, projectId, theme: "dark" });
-    assert.equal(asDark.status, "found");
-    assert.equal(asDark.theme, "dark");
-    assert.equal(asDark.revision, dark.revision);
-    assert.equal(asDark.base64, b64(opaquePng));
-    assert.equal(asDark.sizeBytes, opaquePng.length);
-    assert.equal(asDark.urlPath, `/api/v1/plugins/project-icons/http/icon?projectId=${projectId}&theme=dark&v=${dark.revision}`);
-    assert.equal((await ctx.call("resolveIcon", { version: 1, projectId, theme: "dark", ifRevision: dark.revision })).status, "not-modified");
-    assert.equal((await ctx.call("resolveIcon", { version: 1, projectId, theme: "dark", ifRevision: base.revision })).status, "found");
+    await ctx.call("save", { projectId, base64: b64(opaquePng), theme: "dark" });
+    const expected = await ctx.call("resolveIcon", { version: 1, projectId });
+    assert.equal(expected.status, "found");
+    assert.equal(expected.theme, "any");
+    assert.equal(expected.revision, base.revision);
+    assert.equal(expected.base64, b64(transparentPng));
+    assert.equal(expected.urlPath, `/api/v1/plugins/project-icons/http/icon?projectId=${projectId}&v=${base.revision}`);
+    for (const theme of ["light", "dark"]) assert.deepEqual(await ctx.call("resolveIcon", { version: 1, projectId, theme }), expected);
+    assert.equal((await ctx.call("resolveIcon", { version: 1, projectId, theme: "dark", ifRevision: base.revision })).status, "not-modified");
     assert.equal((await ctx.call("resolveIcon", { version: 2, projectId, theme: "dark" })).status, "unsupported-version");
     assert.equal((await ctx.call("resolveIcon", { version: 1, projectId: otherId, theme: "dark" })).status, "missing");
     await assert.rejects(ctx.call("resolveIcon", { version: 1, projectId, theme: "sepia" }));
   } finally { await ctx.harness.lifecycle.dispose(); }
+});
+
+test("a new default icon never inherits stale variants left by a partial removal or a downgrade", async () => {
+  const { bb, harness, call, fetchBytes } = await host();
+  try {
+    await call("save", { projectId, base64: b64(transparentPng) });
+    await call("save", { projectId, base64: b64(opaquePng), theme: "dark" });
+    await bb.storage.kv.set("index", {});
+    await bb.storage.kv.delete(`image:${projectId}`);
+    const next = await call("save", { projectId, base64: b64(emojiPng) });
+    assert.deepEqual((await call("list", null)).projects[0], { ...(await call("list", null)).projects[0], revision: next.revision, variants: { light: null, dark: null } });
+    assert.equal((await fetchBytes(`/icon?projectId=${projectId}&theme=dark`)).status, 404);
+  } finally { await harness.lifecycle.dispose(); }
 });
 
 test("removing a variant keeps the default; removing the default removes variants and Undo restores them", async () => {
@@ -110,7 +115,6 @@ test("removing a variant keeps the default; removing the default removes variant
     assert.ok(row.variants.light > row.revision && row.variants.dark > row.variants.light);
     assert.equal((await fetchBytes(`/icon?projectId=${projectId}&theme=light`)).bytes.length, opaquePng.length);
     assert.equal((await fetchBytes(`/icon?projectId=${projectId}&theme=dark`)).bytes.length, emojiPng.length);
-    assert.equal((await call("resolveIcon", { version: 1, projectId, theme: "dark" })).revision, row.variants.dark);
   } finally { await harness.lifecycle.dispose(); }
 });
 

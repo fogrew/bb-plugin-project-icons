@@ -175,6 +175,12 @@ export default function plugin(bb: BbPluginApi) {
     return { projects, index, records, variants };
   });
   const projectExists = async (id: string): Promise<boolean> => (await bb.sdk.projects.list()).some((project) => project.id === id);
+  const clearVariants = async (projectId: string) => {
+    const variants = await readVariants();
+    if (!(projectId in variants)) return;
+    await bb.storage.kv.set("variants", withoutVariant(variants, projectId));
+    for (const theme of THEMES) await bb.storage.kv.delete(variantKey(projectId, theme));
+  };
   const removeVariant = (projectId: string, theme: Theme) => serialize(async () => {
     const index = await readIndex();
     const variants = await readVariants();
@@ -276,6 +282,7 @@ export default function plugin(bb: BbPluginApi) {
         await bb.storage.kv.set(variantKey(projectId, theme), bytes.toString("base64"));
         await bb.storage.kv.set("variants", withVariant(await readVariants(), projectId, theme, revision));
       } else {
+        if (!(projectId in index)) await clearVariants(projectId);
         await bb.storage.kv.set(`image:${projectId}`, bytes.toString("base64"));
         await bb.storage.kv.set("index", { ...index, [projectId]: revision });
       }
@@ -318,7 +325,7 @@ export default function plugin(bb: BbPluginApi) {
     },
     remove: async ({ projectId, theme }) => ({ removed: (await remove(projectId, false, theme)).removed }),
     removeWithUndo: ({ projectId, theme }) => remove(projectId, true, theme),
-    resolveIcon: async ({ version, projectId, ifRevision, trail, theme }) => {
+    resolveIcon: async ({ version, projectId, ifRevision, trail }) => {
       if (version !== ICON_CONTRACT_VERSION) return { version: ICON_CONTRACT_VERSION, status: "unsupported-version" as const, supportedVersions: [ICON_CONTRACT_VERSION] };
       if (trail?.includes(PLUGIN_ID)) return { version: ICON_CONTRACT_VERSION, status: "recursive" as const, projectId };
       const unknown = { version: ICON_CONTRACT_VERSION, status: "unknown-project" as const, projectId };
@@ -328,18 +335,13 @@ export default function plugin(bb: BbPluginApi) {
         const revision = (await readIndex())[projectId];
         const base64 = revision === undefined ? null : await bb.storage.kv.get<string>(`image:${projectId}`);
         if (revision === undefined || !base64) return { version: ICON_CONTRACT_VERSION, status: "missing" as const, projectId };
-        const variantRevision = theme ? (await readVariants())[projectId]?.[theme] : undefined;
-        const variantBase64 = theme && variantRevision !== undefined ? await bb.storage.kv.get<string>(variantKey(projectId, theme)) : null;
-        const served = theme && variantRevision !== undefined && variantBase64
-          ? { theme, revision: variantRevision, base64: variantBase64 } : { theme: null, revision, base64 };
-        if (ifRevision === served.revision) return { version: ICON_CONTRACT_VERSION, status: "not-modified" as const, projectId, revision: served.revision };
+        if (ifRevision === revision) return { version: ICON_CONTRACT_VERSION, status: "not-modified" as const, projectId, revision };
         const record = (await readRecords())[projectId];
         return {
-          version: ICON_CONTRACT_VERSION, status: "found" as const, projectId, revision: served.revision, source: "manual" as const,
-          theme: served.theme ?? "any" as const,
-          mimeType: "image/png" as const, width: 64 as const, height: 64 as const, sizeBytes: Buffer.from(served.base64, "base64").length,
-          base64: served.base64, urlPath: iconHttpPath(projectId, served.revision, served.theme ?? undefined),
-          ...(!served.theme && record?.mode === "peer" && record.revision === revision ? { adoptedFrom: record.pluginId } : {}),
+          version: ICON_CONTRACT_VERSION, status: "found" as const, projectId, revision, source: "manual" as const, theme: "any" as const,
+          mimeType: "image/png" as const, width: 64 as const, height: 64 as const, sizeBytes: Buffer.from(base64, "base64").length,
+          base64, urlPath: iconHttpPath(projectId, revision),
+          ...(record?.mode === "peer" && record.revision === revision ? { adoptedFrom: record.pluginId } : {}),
         };
       });
     },
@@ -404,6 +406,7 @@ export default function plugin(bb: BbPluginApi) {
         const bytes = decodePng(base64);
         const revision = await nextRevision(index);
         await bb.storage.kv.set("revisionHighwater", revision);
+        if (!(projectId in index)) await clearVariants(projectId);
         await bb.storage.kv.set(`image:${projectId}`, bytes.toString("base64"));
         await bb.storage.kv.set("index", { ...index, [projectId]: revision });
         await writeRecords({ ...records, [projectId]: { mode: "peer", pluginId: peer, importedAt: Date.now(), hash, revision } });

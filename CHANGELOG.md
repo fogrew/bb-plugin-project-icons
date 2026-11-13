@@ -10,7 +10,7 @@ with the explicit pre-1.0 policy in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ### Added
 
-- Optional light and dark icon variants per project. The icon you already have stays the default for every theme; a variant replaces it only while BB uses that theme, and the sidebar follows a theme switch live without a reload. Variants are added from the editor's **Light and dark variants (optional)** section (the draft preview sits on a light or dark surface), need a default icon first, can be removed individually, and are removed with the default (Undo restores them). `resolveIcon` (contract version 1) now honours its optional `theme` input and may report `found.theme` as `light` or `dark`; calls without `theme` are unchanged. See [Theme variants](docs/theme-variants.md).
+- Optional light and dark icon variants per project. The icon you already have stays the default for every theme; a variant replaces it only while BB uses that theme, and the sidebar follows a theme switch live without a reload. Variants are added from the editor's **Light and dark variants (optional)** section (the draft preview sits on a light or dark surface), need a default icon first, can be removed individually, and are removed with the default (Undo restores them). `resolveIcon` (contract version 1) is unchanged and still returns the default icon; exposing variants to other plugins is a follow-up. See [Theme variants](docs/theme-variants.md).
 
 ### Changed
 
