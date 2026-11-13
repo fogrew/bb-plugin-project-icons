@@ -40,7 +40,7 @@ commit (`--no-ff`), so each branch's commits stay in history and can be reverted
 as a unit; squash and rebase are not used. A release or hotfix branch is merged
 into `main` by PR, the owner tags the resulting `main` commit, and the same
 branch is then merged back into `develop` through a back-merge PR so that
-`main` is always an ancestor of `develop`. History written before this policy
+everything released is contained in `develop`. History written before this policy
 (squash commits) is not rewritten; `release/0.4.0` carries one `-s ours` merge
 that connects it.
 
